@@ -46,7 +46,7 @@ public class TestStreamWikiDumpInputFormat {
 
   private static final int SPLITS_COUNT = 2;
 
-  // @Test
+  @Test
   public void testFormatWithOneSplitUncompressed() throws IOException {
     JobConf job = new JobConf(conf);
     job.set("stream.recordreader.class", "org.wikimedia.wikihadoop.StreamWikiDumpRecordReader");
@@ -60,11 +60,27 @@ public class TestStreamWikiDumpInputFormat {
 
     Writer txtWriter = new OutputStreamWriter(fs.create(txtFile));
     try {
-      txtWriter.write("<tree><page><header/><revision>first</revision><revision>second</revision><revision>third</revision><revision>n</revision><revision>n+1</revision></page>\n" + "<page><longlongheader/><revision>e</revision></page></tree>\n");
+      txtWriter.write("<tree><page><header/><revision>first</revision><revision>second</revision><revision>third</revision><revision>n</revision><revision>n+1</revision></page>\n"
+                      + "<page><longlongheader/><revision>e</revision></page></tree>\n"
+                      + "<page><long-long-long-header/><revision>f</revision></page></tree>\n");
     } finally {
       txtWriter.flush();
       txtWriter.close();
     }
+
+    StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
+    format.configure(job);
+    List<String> found = collect(format, job, 1);
+
+    assertEquals(Arrays.asList(new String[]{
+          "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
+          "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
+          "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
+          "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
+          "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
+          "<page><longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
+          "<page><long-long-long-header/><revision beginningofpage=\"true\"></revision>\n<revision>f</revision>\n</page>\n",
+        }), found);
   }
   @Test
     public void testFormatWithOneSplitUncompressedFragments() throws IOException {
@@ -108,7 +124,7 @@ public class TestStreamWikiDumpInputFormat {
     return os.toByteArray();
   }
 
-  //@Test
+  @Test
   public void testFormatWithOneSplitCompressed() throws IOException {
     JobConf job = new JobConf(conf);
     FileSystem fs = FileSystem.getLocal(conf);
@@ -140,7 +156,7 @@ public class TestStreamWikiDumpInputFormat {
         }), found);
   }
 
-  //@Test
+  @Test
   public void testFormatWithCompressed() throws IOException {
     JobConf job = new JobConf(conf);
     FileSystem fs = FileSystem.getLocal(conf);
@@ -162,7 +178,7 @@ public class TestStreamWikiDumpInputFormat {
 
     StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
     format.configure(job);
-    List<String> found = collect(format, job, 20);
+    List<String> found = collect(format, job, 3);
     assertEquals(Arrays.asList(new String[]{
           "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
           "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
@@ -236,7 +252,8 @@ public class TestStreamWikiDumpInputFormat {
       RecordReader reader = format.getRecordReader(split, job, Reporter.NULL);
       try {
         while (reader.next(key, value)) {
-          System.out.println("key: (" + key.toString().length() + ") " + snip(key.toString(), len));
+          System.err.println("key: (" + key.toString().length() + ") " + snip(key.toString(), len));
+          System.out.println(key.toString());
         }
       } finally {
         reader.close();

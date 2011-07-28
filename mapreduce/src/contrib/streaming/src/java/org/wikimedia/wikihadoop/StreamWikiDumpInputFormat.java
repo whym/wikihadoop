@@ -28,19 +28,18 @@ import org.apache.hadoop.io.WritableComparable;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.Seekable;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.BlockLocation;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
-import org.apache.hadoop.streaming.StreamBaseRecordReader;
-import org.apache.hadoop.streaming.StreamUtil;
 
 import org.apache.hadoop.io.compress.*;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.streaming.StreamUtil;
 
 import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.io.compress.*;
@@ -79,7 +78,27 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
    * @param job the job context
    * @throws IOException
    */
-  // public List<InputSplit> getSplits(JobContext job) throws IOException {
+  @Override public InputSplit[] getSplits(JobConf job, int n) throws IOException {
+    System.err.println("StreamWikiDumpInputFormat.getSplits job=" + job + " n=" + n);
+    return super.getSplits(job, n);
+    
+    // List<InputSplit> splits = new ArrayList<InputSplit>();
+    // for (FileStatus file: listStatus(job)) {
+    //   Path path = file.getPath();
+    //   long length = file.getLen();
+    //   if (length != 0) {
+    //     FileSystem fs = path.getFileSystem(job);
+    //     BlockLocation[] blkLocations = fs.getFileBlockLocations(file, 0, length);
+    //     splits.add(makeSplit(path, 0, length, blkLocations[0].getHosts()));
+    //   }
+    // }
+    // // Save the number of input files for metrics/loadgen
+    // job.setLong(NUM_INPUT_FILES, listStatus(job).length);
+    // LOG.debug("Total # of splits: " + splits.size());
+    // InputSplit[] array = new InputSplit[splits.size()];
+    // splits.toArray(array);
+    // return array;
+
   //   long minSize = Math.max(getFormatMinSplitSize(), getMinSplitSize(job));
   //   long maxSize = getMaxSplitSize(job);
 
@@ -120,7 +139,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
   //   job.getConfiguration().setLong(NUM_INPUT_FILES, files.size());
   //   LOG.debug("Total # of splits: " + splits.size());
   //   return splits;
-  // }
+  }
 
   public RecordReader<Text, Text> getRecordReader(final InputSplit genericSplit,
                                                   JobConf job, Reporter reporter) throws IOException {
@@ -138,111 +157,138 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     
     public MyRecordReader(FileSplit split, Reporter reporter,
                           JobConf job, FileSystem fs) throws IOException {
-      FSDataInputStream in = fs.open(split.getPath());
       this.revisionBeginPattern = "<revision";
       this.revisionEndPattern   = "</revision>";
       this.pageHeader   = new DataOutputBuffer();
       this.prevRevision = new DataOutputBuffer();
-      this.pageFooter = getBuffer("\n</page>\n".getBytes());
-      this.revHeader  = getBuffer(this.revisionBeginPattern.getBytes());
-      this.firstDummyRevision = getBuffer(" beginningofpage=\"true\"></revision>\n".getBytes());
+      this.pageFooter = getBuffer("\n</page>\n".getBytes("UTF-8"));
+      this.revHeader  = getBuffer(this.revisionBeginPattern.getBytes("UTF-8"));
+      this.firstDummyRevision = getBuffer(" beginningofpage=\"true\"></revision>\n".getBytes("UTF-8"));
       this.bufInRev = new DataOutputBuffer();
       this.bufBeforeRev = new DataOutputBuffer();
       
-      final org.apache.hadoop.fs.Path file = split.getPath();
-      CompressionCodec codec = compressionCodecs.getCodec(file);
+      final CompressionCodec codec = compressionCodecs.getCodec(split.getPath());
 
-      
+      this.fs = fs;
+      this.split = split;
+      this.codec = codec;
       if (codec != null) {
         Decompressor decompressor = CodecPool.getDecompressor(codec);
         if (codec instanceof SplittableCompressionCodec) {
           SplittableCompressionCodec scodec = (SplittableCompressionCodec)codec;
-          this.pageBytes = getPageBytes(fs, split.getPath(), 
-                                        scodec,
-                                        decompressor,
-                                        split.getStart(), split.getStart() + split.getLength());
           final SplitCompressionInputStream cIn = scodec.createInputStream
-            (in, decompressor, split.getStart(), split.getStart() + split.getLength(),
+            (fs.open(split.getPath()), decompressor, split.getStart(), split.getStart() + split.getLength(),
              SplittableCompressionCodec.READ_MODE.BYBLOCK);
+          //System.err.println("init decompressor=" + decompressor + " codec=" + scodec);//!
+
           this.start = cIn.getAdjustedStart();
           this.end   = cIn.getAdjustedEnd();
-          this.in = cIn;
-          this.filePosition = cIn;
           this.fileBytes = new BytesRead();
         } else {
           this.start = split.getStart();
           this.end   = split.getStart() + split.getLength();
-          this.in = codec.createInputStream(in, decompressor);
-          this.filePosition = in;
           this.fileBytes  = new BytesRead();
-          this.pageBytes = getPageBytes(fs, split.getPath(), this.start, this.end);
         }
       } else {
         this.start = split.getStart();
         this.end   = split.getStart() + split.getLength();
-        this.in = in;
-        this.filePosition = in;
         this.fileBytes    = new BytesRead();
-        this.filePosition.seek(this.start);
-        this.pageBytes = getPageBytes(fs, split.getPath(), this.start, this.end);
       }
-      //System.err.println("StreamWikiDumpInputFormat: start=" + this.start + " end=" + this.end + " pos=" + this.filePosition.getPos() + " pageBytes=" + pageBytes);
-      System.err.println("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.filePosition.getPos() + " pageBytes=" + pageBytes);//!
-      LOG.info("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.filePosition.getPos() + " pageBytes=" + pageBytes);
-      this.pageHeader.reset();
+      this.reporter = reporter;
+      this.pageBytes = new ArrayList<Long>();
       init();
     }
-
+    
+    
     public void init() throws IOException {
+      SplittableCompressionCodec scodec = null;
+      if ( this.codec != null && this.codec instanceof SplittableCompressionCodec ) {
+        scodec = (SplittableCompressionCodec)codec;
+      }
+      this.pageHeader.reset();
       this.prevRevision.reset();
       this.prevRevision.write(this.firstDummyRevision.getData(), 0, this.firstDummyRevision.getLength());
       this.currentPageNum = 0;
-      this.seekNextRecordBoundary();
+      this.pageBytes.clear();
+      this.pageBytes.addAll(getPageBytes(scodec, this.fs, this.split, this.reporter));
+
+      if ( this.codec != null ) {
+        Decompressor decompressor = CodecPool.getDecompressor(codec);
+        if ( this.codec instanceof SplittableCompressionCodec ) {
+          scodec = (SplittableCompressionCodec)codec;
+          SplitCompressionInputStream cIn = scodec.createInputStream
+            (fs.open(split.getPath()), decompressor, this.split.getStart(), this.split.getStart() + this.split.getLength(),
+             SplittableCompressionCodec.READ_MODE.BYBLOCK);
+          this.istream = new SeekableInputStream(cIn);
+        } else {
+          FSDataInputStream in = fs.open(split.getPath());
+          this.istream = new SeekableInputStream(codec.createInputStream(in, decompressor), in);
+        }
+      } else {
+        this.istream = new SeekableInputStream(fs.open(split.getPath()));
+      }
+      this.seekNextRecordBoundary();      
     }
-  
-    public Text createKey() {
+    
+    @Override public Text createKey() {
       return new Text();
     }
     
-    public Text createValue() {
+    @Override public Text createValue() {
       return new Text();
     }
-
-    public synchronized void close() throws IOException {
-        this.in.close();
-      }
-
-    public float getProgress() throws IOException {
+    
+    @Override public void close() throws IOException {
+      this.istream.close();
+    }
+    
+    @Override public float getProgress() throws IOException {
+      float rate = 0.0f;
       if (this.end == this.start) {
-        return 1.0f;
+        rate = 1.0f;
       } else {
-        return ((float)(this.getPos() - this.start)) / ((float)(this.end - this.start));
+        rate = ((float)(this.getPosition() - this.start)) / ((float)(this.end - this.start));
       }
+      return rate;
     }
-
-    public synchronized long getPos() throws IOException {
-      return this.filePosition.getPos();
+    
+    @Override public long getPos() throws IOException {
+      return this.istream.getPos();
     }
-
+    
+    public long getPosition() throws IOException {
+      return this.istream.getPos();
+    }
+    
     public synchronized long getReadBytes() throws IOException {
-      return this.fileBytes.getPos();
-    }
+        return this.fileBytes.getByteCount();
+      }
+    
+    @Override public boolean next(Text key, Text value) throws IOException {
+      //System.err.println("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPosition() + " read=" + this.getReadBytes() + " pageBytes=" + pageBytes);//!
+      LOG.info("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPosition() + " pageBytes=" + pageBytes);
+      
+      if ( this.pageBytes.size() == 0 ) {
+        this.init();
+        if ( this.pageBytes.size() == 0 ) {
+          return false;
+        }
+      }
 
-    public synchronized boolean next(Text key, Text value) throws IOException {
-      if (this.getPos() >= this.end) {
+      //System.err.println("0.2 check pos="+this.getPosition() + " end="+this.end);//!
+      if (this.getReadBytes() >= this.lastPageEnd()) {
         return false;
       }
 
-      //System.err.println("1 page end check");//!
-    
+        
       //System.err.println("2 move to rev from: " + this.getReadBytes());//!
       this.bufBeforeRev.reset();
       if (!readUntilMatch(this.revisionBeginPattern, this.bufBeforeRev)) { // move to the beginning of the next revision
         return false;
       }
-      System.err.println("2.1 move to rev to: " + this.getReadBytes());//!
-
-      System.err.println("4.5 check if exceed: " + this.getReadBytes() + " " + nextPageBegin() + " " + prevPageEnd());//!
+      //System.err.println("2.1 move to rev to: " + this.getReadBytes());//!
+        
+      //System.err.println("4.5 check if exceed: " + this.getReadBytes() + " " + nextPageBegin() + " " + prevPageEnd());//!
       if ( this.getReadBytes() >= this.nextPageBegin() ) {
         this.pageHeader.reset();
         int off = (int)(this.nextPageBegin() - this.prevPageEnd());
@@ -252,16 +298,16 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         this.currentPageNum++;
         //System.err.println("4.6 exceed");//!
       }
-
+      
       //System.err.println("4 read rev from: " + this.getReadBytes());//!
       this.bufInRev.reset();
-      if (this.getPos() >= this.end || !readUntilMatch(this.revisionEndPattern, this.bufInRev)) { // store the revision
+      if (this.getReadBytes() >= this.lastPageEnd() || !readUntilMatch(this.revisionEndPattern, this.bufInRev)) { // store the revision
         //System.err.println("no revision end" + this.getReadBytes() + " " + this.end);//!
-        LOG.info("no revision end");
-        return false;
-      }
+          LOG.info("no revision end");
+          return false;
+        }
       //System.err.println("4.1 read rev to: " + this.getReadBytes());//!
-
+        
       //System.err.println("5 read rev pos " + this.getReadBytes());//!
       byte[] record = writeInSequence(new DataOutputBuffer[]{ this.pageHeader,
                                                               this.prevRevision,
@@ -269,26 +315,34 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
                                                               this.bufInRev,
                                                               this.pageFooter});
       key.set(record);
+      //System.out.println(key.toString());
       value.set("");
-
+      this.reporter.setStatus("StreamWikiDumpInputFormat: write new record pos=" + this.istream.getPos() + " bytes=" + this.getReadBytes());
+      
       this.prevRevision.reset();
       this.prevRevision.write(this.bufInRev.getData(), 0, this.bufInRev.getLength());
-
+      
       return true;
     }
-
+    
     public void seekNextRecordBoundary() throws IOException {
       if ( this.getReadBytes() < this.nextPageBegin() ) {
         long len = this.nextPageBegin() - this.getReadBytes();
         this.fileBytes.proceed(len);
-        this.in.skip(len);
+        this.istream.skip(len);
       }
     }
     private boolean readUntilMatch(String textPat, DataOutputBuffer outBufOrNull) throws IOException {
-      //System.err.println("read " + textPat + " pos=" + this.filePosition.getPos() + " bytes=" + this.fileBytes.getPos());
-      return readUntilMatch_(this.in, this.filePosition, this.fileBytes, this.end, textPat, outBufOrNull);
+      return readUntilMatch_(this.istream, this.istream, this.fileBytes, this.end, textPat, outBufOrNull);
     }
-    private long nextPageBegin() {
+    private long lastPageEnd() {
+      if ( this.pageBytes.size() > 0 ) {
+        return this.pageBytes.get(this.pageBytes.size() - 1);
+      } else {
+        return 0;
+      }
+    }
+     private long nextPageBegin() {
       if ( this.currentPageNum * 2 < this.pageBytes.size() - 1 ) {
         return this.pageBytes.get(this.currentPageNum * 2);
       } else {
@@ -307,15 +361,14 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       } else {
         return this.end;
       }
-    }
-
+    }  
+  
     private int currentPageNum;
     private final long start;
     private final long end;
     private final List<Long> pageBytes;
     private final BytesRead fileBytes;
-    private final Seekable  filePosition;
-    private final InputStream in;
+    private SeekableInputStream  istream;
     private final String revisionBeginPattern;
     private final String revisionEndPattern;
     private final DataOutputBuffer pageHeader;
@@ -325,6 +378,10 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     private final DataOutputBuffer firstDummyRevision;
     private final DataOutputBuffer bufInRev;
     private final DataOutputBuffer bufBeforeRev;
+    private final FileSystem fs;
+    private final FileSplit split;
+    private final CompressionCodec codec;
+    private final Reporter reporter;
   }
 
   private static byte[] writeInSequence(DataOutputBuffer[] array) {
@@ -361,10 +418,12 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     int i = 0;
     while (true) {
       int b = in.read();
-      bytes.proceed(1);
+      bytes.proceed(1);         //! TODO: count up later in batch
       // end of file:
-      if (b == -1)
+      if (b == -1) {
+        //System.err.println("eof 1");
         return false;
+      }
       // save to buffer:
       if (outBufOrNull != null)
         outBufOrNull.write(b);
@@ -379,43 +438,57 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         //pos.proceed(i + 1);
       }
       // see if we've passed the stop point:
-      if (outBufOrNull == null && i == 0 && pos.getPos() >= end)
+      if (outBufOrNull == null && i == 0 && pos.getPos() >= end) {
+        System.err.println("eof 2");
         return false;
+      }
     }
   }
 
-  private static List<Long> getPageBytes(InputStream in, Seekable pos, BytesRead bytes, long start, long end) throws IOException {
+  private static List<Long> getPageBytes(SplittableCompressionCodec scodec, FileSystem fs, FileSplit split,  Reporter reporter) throws IOException {
+    if ( scodec == null ) {
+      FSDataInputStream din = fs.open(split.getPath());
+      try {
+        din.seek(split.getStart());
+        return getPageBytes_(din, din, reporter, split.getStart(), split.getStart() + split.getLength());
+      } finally {
+        din.close();
+      }
+    } else {
+      Decompressor decompressor = CodecPool.getDecompressor(scodec);
+      //System.err.println("getp decompressor=" + decompressor + " codec=" + scodec);//!
+
+      SplitCompressionInputStream cin = scodec.createInputStream
+        (fs.open(split.getPath()), decompressor, split.getStart(), split.getStart() + split.getLength(),
+         SplittableCompressionCodec.READ_MODE.BYBLOCK);
+      try {
+        return getPageBytes_(cin, cin, reporter, cin.getAdjustedStart(), cin.getAdjustedEnd());
+      } finally {
+        cin.close();
+      }
+    }
+  }
+
+  private static List<Long> getPageBytes_(InputStream in, Seekable pos, Reporter reporter, long start, long end) throws IOException {
+    BytesRead bytes = new BytesRead();
     List<Long> ret = new ArrayList<Long>();
     while ( true ) {
       if ( pos.getPos() >= end  || !readUntilMatch_(in, pos, bytes, end, pageBeginPattern, null) ) {
         break;
       }
-      ret.add(bytes.getPos() - pageBeginPattern.length());
+      ret.add(bytes.getByteCount() - pageBeginPattern.getBytes("UTF-8").length);
       if ( pos.getPos() >= end  || !readUntilMatch_(in, pos, bytes, end, pageEndPattern, null) ) {
-        System.err.println("could not find "+pageEndPattern+", page over a split?  pos=" + pos + " bytes=" + bytes);
+        System.err.println("could not find "+pageEndPattern+", page over a split?  pos=" + pos.getPos() + " bytes=" + bytes.getByteCount());
         ret.remove(ret.size() - 1);
         break;
       }
-      ret.add(bytes.getPos() - pageEndPattern.length());
+      ret.add(bytes.getByteCount() - pageEndPattern.getBytes("UTF-8").length);
+      reporter.setStatus(String.format("StreamWikiDumpInputFormat: find page %6d start=%d pos=%d end=%d bytes=%d", ret.size(), start, pos.getPos(), end, bytes.getByteCount()));
     }
+    //System.err.println("getPageBytes " + ret);//!
     return ret;
   }
 
-  private static List<Long> getPageBytes(FileSystem fs, Path path, long start, long end) throws IOException {
-    FSDataInputStream in = fs.open(path);
-    return getPageBytes(in, in, new BytesRead(), start, end);
-  }  
-  private static List<Long> getPageBytes(FileSystem fs, Path path, SplittableCompressionCodec codec, Decompressor decompressor, long start, long end) throws IOException {
-    SplitCompressionInputStream in = codec.createInputStream
-      (fs.open(path), decompressor, start, end,
-       SplittableCompressionCodec.READ_MODE.BYBLOCK);
-    return getPageBytes(in, in, new BytesRead(), in.getAdjustedStart(), in.getAdjustedEnd());
-  }
-  private static byte[] offset(byte[] bytes, int offset) {
-    byte[] ret = new byte[bytes.length - offset];
-    System.arraycopy(bytes, offset, ret, 0, ret.length);
-    return ret;
-  }
   private static void offsetWrite(DataOutputBuffer to, int fromOffset, DataOutputBuffer from) throws IOException {
     byte[] bytes = new byte[from.getLength() - fromOffset];
     System.arraycopy(from.getData(), fromOffset, bytes, 0, bytes.length);
@@ -424,7 +497,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
 
   private static class BytesRead {
     long p = 0;
-    public long getPos() {
+    public long getByteCount() {
       return p;
     }
     public void reset() {
@@ -434,6 +507,29 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       this.p += n;
     }
   }
+
+  private static class SeekableInputStream extends FilterInputStream implements Seekable {
+    Seekable seek;
+    public SeekableInputStream(FSDataInputStream in) {
+      super(in);
+      this.seek = in;
+    }
+    public SeekableInputStream(SplitCompressionInputStream cin) {
+      super(cin);
+      this.seek = cin;
+    }
+    public SeekableInputStream(CompressionInputStream cin, FSDataInputStream in) {
+      super(cin);
+      this.seek = in;
+    }
+    public long getPos() throws IOException { return this.seek.getPos(); }
+    public void seek(long pos) throws IOException { this.seek.seek(pos); } 
+    public boolean seekToNewSource(long targetPos) throws IOException { return this.seek.seekToNewSource(targetPos); }
+    @Override public String toString() {
+      return this.in.toString();
+    }
+  }
+
   private static final String pageBeginPattern = "<page>";
   private static final String pageEndPattern   = "</page>";
 }
