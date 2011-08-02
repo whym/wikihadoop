@@ -318,6 +318,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       //System.out.println(key.toString());
       value.set("");
       this.reporter.setStatus("StreamWikiDumpInputFormat: write new record pos=" + this.istream.getPos() + " bytes=" + this.getReadBytes());
+      reporter.incrCounter(WikiDumpCounters.WRITTEN_REVISIONS, 1);
       
       this.prevRevision.reset();
       this.prevRevision.write(this.bufInRev.getData(), 0, this.bufInRev.getLength());
@@ -484,6 +485,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       }
       ret.add(bytes.getByteCount() - pageEndPattern.getBytes("UTF-8").length);
       reporter.setStatus(String.format("StreamWikiDumpInputFormat: find page %6d start=%d pos=%d end=%d bytes=%d", ret.size(), start, pos.getPos(), end, bytes.getByteCount()));
+      reporter.incrCounter(WikiDumpCounters.FOUND_PAGES, 1);
     }
     //System.err.println("getPageBytes " + ret);//!
     return ret;
@@ -506,6 +508,10 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     public void proceed(long n) {
       this.p += n;
     }
+  }
+
+  private static enum WikiDumpCounters {
+    FOUND_PAGES, WRITTEN_REVISIONS
   }
 
   private static class SeekableInputStream extends FilterInputStream implements Seekable {
