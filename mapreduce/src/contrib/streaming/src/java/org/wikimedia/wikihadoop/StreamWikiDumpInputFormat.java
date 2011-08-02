@@ -80,65 +80,15 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
    */
   @Override public InputSplit[] getSplits(JobConf job, int n) throws IOException {
     System.err.println("StreamWikiDumpInputFormat.getSplits job=" + job + " n=" + n);
-    return super.getSplits(job, n);
-    
-    // List<InputSplit> splits = new ArrayList<InputSplit>();
-    // for (FileStatus file: listStatus(job)) {
-    //   Path path = file.getPath();
-    //   long length = file.getLen();
-    //   if (length != 0) {
-    //     FileSystem fs = path.getFileSystem(job);
-    //     BlockLocation[] blkLocations = fs.getFileBlockLocations(file, 0, length);
-    //     splits.add(makeSplit(path, 0, length, blkLocations[0].getHosts()));
-    //   }
-    // }
-    // // Save the number of input files for metrics/loadgen
-    // job.setLong(NUM_INPUT_FILES, listStatus(job).length);
-    // LOG.debug("Total # of splits: " + splits.size());
-    // InputSplit[] array = new InputSplit[splits.size()];
-    // splits.toArray(array);
-    // return array;
+    InputSplit[] oldSplits = super.getSplits(job, n);
+    List<InputSplit> splits = new ArrayList<InputSplit>();
+    for ( InputSplit x: oldSplits ) {
+      splits.add(x);//!
+    }
 
-  //   long minSize = Math.max(getFormatMinSplitSize(), getMinSplitSize(job));
-  //   long maxSize = getMaxSplitSize(job);
-
-  //   // generate splits
-  //   List<InputSplit> splits = new ArrayList<InputSplit>();
-  //   List<FileStatus> files = listStatus(job);
-  //   for (FileStatus file: files) {
-  //     Path path = file.getPath();
-  //     long length = file.getLen();
-  //     if (length != 0) {
-  //       FileSystem fs = path.getFileSystem(job.getConfiguration());
-  //       BlockLocation[] blkLocations = fs.getFileBlockLocations(file, 0, length);
-  //       if (isSplitable(job, path)) {
-  //         long blockSize = file.getBlockSize();
-  //         long splitSize = computeSplitSize(blockSize, minSize, maxSize);
-
-  //         long bytesRemaining = length;
-  //         while (((double) bytesRemaining)/splitSize > SPLIT_SLOP) {
-  //           int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
-  //           splits.add(makeSplit(path, length-bytesRemaining, splitSize,
-  //                                    blkLocations[blkIndex].getHosts()));
-  //           bytesRemaining -= splitSize;
-  //         }
-
-  //         if (bytesRemaining != 0) {
-  //           splits.add(makeSplit(path, length-bytesRemaining, bytesRemaining,
-  //                      blkLocations[blkLocations.length-1].getHosts()));
-  //         }
-  //       } else { // not splitable
-  //         splits.add(makeSplit(path, 0, length, blkLocations[0].getHosts()));
-  //       }
-  //     } else { 
-  //       //Create empty hosts array for zero length files
-  //       splits.add(makeSplit(path, 0, length, new String[0]));
-  //     }
-  //   }
-  //   // Save the number of input files for metrics/loadgen
-  //   job.getConfiguration().setLong(NUM_INPUT_FILES, files.size());
-  //   LOG.debug("Total # of splits: " + splits.size());
-  //   return splits;
+    InputSplit[] array = new InputSplit[splits.size()];
+    splits.toArray(array);
+    return array;
   }
 
   public RecordReader<Text, Text> getRecordReader(final InputSplit genericSplit,
@@ -162,7 +112,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       this.pageHeader   = new DataOutputBuffer();
       this.prevRevision = new DataOutputBuffer();
       this.pageFooter = getBuffer("\n</page>\n".getBytes("UTF-8"));
-      this.revHeader  = getBuffer(this.revisionBeginPattern.getBytes("UTF-8"));
+      this.revHeader  = getBuffer((//"<this-is-second-revision-by-debugger/>"+//!
+                                   this.revisionBeginPattern).getBytes("UTF-8"));
       this.firstDummyRevision = getBuffer(" beginningofpage=\"true\"></revision>\n".getBytes("UTF-8"));
       this.bufInRev = new DataOutputBuffer();
       this.bufBeforeRev = new DataOutputBuffer();
@@ -206,9 +157,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         scodec = (SplittableCompressionCodec)codec;
       }
       this.pageHeader.reset();
-      this.prevRevision.reset();
-      this.prevRevision.write(this.firstDummyRevision.getData(), 0, this.firstDummyRevision.getLength());
-      this.currentPageNum = 0;
+      allWrite(this.prevRevision, this.firstDummyRevision);
+      this.currentPageNum = -1;
       this.pageBytes.clear();
       this.pageBytes.addAll(getPageBytes(scodec, this.fs, this.split, this.reporter));
 
@@ -226,6 +176,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         }
       } else {
         this.istream = new SeekableInputStream(fs.open(split.getPath()));
+        this.istream.seek(this.start);
       }
       this.seekNextRecordBoundary();      
     }
@@ -264,7 +215,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         return this.fileBytes.getByteCount();
       }
     
-    @Override public boolean next(Text key, Text value) throws IOException {
+    @Override synchronized public boolean next(Text key, Text value) throws IOException {
       //System.err.println("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPosition() + " read=" + this.getReadBytes() + " pageBytes=" + pageBytes);//!
       LOG.info("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPosition() + " pageBytes=" + pageBytes);
       
@@ -273,35 +224,36 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         if ( this.pageBytes.size() == 0 ) {
           return false;
         }
+        reporter.incrCounter(WikiDumpCounters.WRITTEN_REVISIONS, 0);
+        reporter.incrCounter(WikiDumpCounters.WRITTEN_PAGES, 0);
       }
 
       //System.err.println("0.2 check pos="+this.getPosition() + " end="+this.end);//!
-      if (this.getReadBytes() >= this.lastPageEnd()) {
+      if (this.currentPageNum >= this.pageBytes.size() / 2  ||  this.getReadBytes() >= this.tailPageEnd()) {
         return false;
       }
 
-        
       //System.err.println("2 move to rev from: " + this.getReadBytes());//!
-      this.bufBeforeRev.reset();
-      if (!readUntilMatch(this.revisionBeginPattern, this.bufBeforeRev)) { // move to the beginning of the next revision
+      if (!readUntilMatch(this.revisionBeginPattern, this.bufBeforeRev)  ||  this.getReadBytes() >= this.tailPageEnd()) { // move to the beginning of the next revision
         return false;
       }
       //System.err.println("2.1 move to rev to: " + this.getReadBytes());//!
         
       //System.err.println("4.5 check if exceed: " + this.getReadBytes() + " " + nextPageBegin() + " " + prevPageEnd());//!
       if ( this.getReadBytes() >= this.nextPageBegin() ) {
-        this.pageHeader.reset();
-        int off = (int)(this.nextPageBegin() - this.prevPageEnd());
-        offsetWrite(this.pageHeader, off, this.bufBeforeRev);
-        this.prevRevision.reset();
-        this.prevRevision.write(this.firstDummyRevision.getData(), 0, this.firstDummyRevision.getLength());
-        this.currentPageNum++;
-        //System.err.println("4.6 exceed");//!
+        // int off = (int)(this.nextPageBegin() - this.prevPageEnd());
+        int off = findIndex(pageBeginPattern.getBytes("UTF-8"), this.bufBeforeRev);
+        if ( off >= 0 ) {
+          offsetWrite(this.pageHeader, off, this.bufBeforeRev);
+          allWrite(this.prevRevision, this.firstDummyRevision);
+          this.currentPageNum++;
+          reporter.incrCounter(WikiDumpCounters.WRITTEN_PAGES, 1);
+          //System.err.println("4.6 exceed");//!
+        }
       }
       
       //System.err.println("4 read rev from: " + this.getReadBytes());//!
-      this.bufInRev.reset();
-      if (this.getReadBytes() >= this.lastPageEnd() || !readUntilMatch(this.revisionEndPattern, this.bufInRev)) { // store the revision
+      if (!readUntilMatch(this.revisionEndPattern, this.bufInRev)) { // store the revision
         //System.err.println("no revision end" + this.getReadBytes() + " " + this.end);//!
           LOG.info("no revision end");
           return false;
@@ -315,37 +267,39 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
                                                               this.bufInRev,
                                                               this.pageFooter});
       key.set(record);
-      //System.out.println(key.toString());
+      //System.out.print(key.toString());//!
       value.set("");
       this.reporter.setStatus("StreamWikiDumpInputFormat: write new record pos=" + this.istream.getPos() + " bytes=" + this.getReadBytes());
+      System.err.println("StreamWikiDumpInputFormat: write new record pos=" + this.istream.getPos() + " bytes=" + this.getReadBytes() + " next=" + this.nextPageBegin() + " prev=" + this.prevPageEnd());//!
       reporter.incrCounter(WikiDumpCounters.WRITTEN_REVISIONS, 1);
       
-      this.prevRevision.reset();
-      this.prevRevision.write(this.bufInRev.getData(), 0, this.bufInRev.getLength());
+      allWrite(this.prevRevision, this.bufInRev);
       
       return true;
     }
     
-    public void seekNextRecordBoundary() throws IOException {
+    public synchronized void seekNextRecordBoundary() throws IOException {
       if ( this.getReadBytes() < this.nextPageBegin() ) {
         long len = this.nextPageBegin() - this.getReadBytes();
         this.fileBytes.proceed(len);
         this.istream.skip(len);
       }
     }
-    private boolean readUntilMatch(String textPat, DataOutputBuffer outBufOrNull) throws IOException {
+    private synchronized boolean readUntilMatch(String textPat, DataOutputBuffer outBufOrNull) throws IOException {
+      if ( outBufOrNull != null )
+        outBufOrNull.reset();
       return readUntilMatch_(this.istream, this.istream, this.fileBytes, this.end, textPat, outBufOrNull);
     }
-    private long lastPageEnd() {
+    private long tailPageEnd() {
       if ( this.pageBytes.size() > 0 ) {
         return this.pageBytes.get(this.pageBytes.size() - 1);
       } else {
         return 0;
       }
     }
-     private long nextPageBegin() {
-      if ( this.currentPageNum * 2 < this.pageBytes.size() - 1 ) {
-        return this.pageBytes.get(this.currentPageNum * 2);
+    private long nextPageBegin() {
+      if ( (this.currentPageNum + 1) * 2 < this.pageBytes.size() - 1 ) {
+        return this.pageBytes.get((this.currentPageNum + 1) * 2);
       } else {
         return this.end;
       }
@@ -357,7 +311,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         } else {
           return this.start;
         }
-      } else if ( this.currentPageNum * 2 - 1 < this.pageBytes.size() - 1 ) {
+      } else if ( this.currentPageNum * 2 - 1 <= this.pageBytes.size() - 1 ) {
         return this.pageBytes.get(this.currentPageNum * 2 - 1);
       } else {
         return this.end;
@@ -419,12 +373,12 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     int i = 0;
     while (true) {
       int b = in.read();
-      bytes.proceed(1);         //! TODO: count up later in batch
       // end of file:
       if (b == -1) {
         //System.err.println("eof 1");
         return false;
       }
+      bytes.proceed(1);         //! TODO: count up later in batch
       // save to buffer:
       if (outBufOrNull != null)
         outBufOrNull.write(b);
@@ -492,9 +446,36 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
   }
 
   private static void offsetWrite(DataOutputBuffer to, int fromOffset, DataOutputBuffer from) throws IOException {
+    if ( from.getLength() <= fromOffset || fromOffset < 0 ) {
+      throw new IllegalArgumentException(String.format("invalid offset: offset=%d length=%d", fromOffset, from.getLength()));
+    }
     byte[] bytes = new byte[from.getLength() - fromOffset];
     System.arraycopy(from.getData(), fromOffset, bytes, 0, bytes.length);
+    to.reset();
     to.write(bytes);
+  }
+  private static void allWrite(DataOutputBuffer to, DataOutputBuffer from) throws IOException {
+    offsetWrite(to, 0, from);
+  }
+
+  private static int findIndex(byte[] match, DataOutputBuffer from_) throws IOException {
+    // TODO: faster string pattern match (KMP etc)
+    int m = 0;
+    int i;
+    byte[] from = from_.getData();
+    for ( i = 0; i < from_.getLength(); ++i ) {
+      if ( from[i] == match[m] ) {
+        ++m;
+      } else {
+        m = 0;
+      }
+      if ( m == match.length ) {
+        return i - m + 1;
+      }
+    }
+    // throw new IllegalArgumentException("pattern not found: " + new String(match) + " in " + new String(from));
+    System.err.println("pattern not found: " + new String(match) + " in " + new String(from));//!
+    return -1;
   }
 
   private static class BytesRead {
@@ -511,7 +492,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
   }
 
   private static enum WikiDumpCounters {
-    FOUND_PAGES, WRITTEN_REVISIONS
+    FOUND_PAGES, WRITTEN_REVISIONS, WRITTEN_PAGES
   }
 
   private static class SeekableInputStream extends FilterInputStream implements Seekable {

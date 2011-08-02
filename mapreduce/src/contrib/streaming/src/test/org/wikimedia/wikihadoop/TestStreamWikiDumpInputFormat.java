@@ -83,7 +83,7 @@ public class TestStreamWikiDumpInputFormat {
         }), found);
   }
   @Test
-    public void testFormatWithOneSplitUncompressedFragments() throws IOException {
+    public void testFormatWithOneSplitUncompressedFragmentsAndSpaces() throws IOException {
     JobConf job = new JobConf(conf);
     job.set("stream.recordreader.class", "org.wikimedia.wikihadoop.StreamWikiDumpRecordReader");
     FileSystem fs = FileSystem.getLocal(conf);
@@ -96,7 +96,7 @@ public class TestStreamWikiDumpInputFormat {
 
     Writer txtWriter = new OutputStreamWriter(fs.create(txtFile));
     try {
-      txtWriter.write("foo-bar-foo-bar-<revision>foo-bar-foo-bar</revision></page><page><header/><revision>first</revision><revision>second</revision><revision>third</revision><revision>n</revision><revision>n+1</revision></page>\n" + "<page><longlongheader/><revision>e</revision></page><page>foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-\n");
+      txtWriter.write("foo-bar-foo-bar-<revision>foo-bar-foo-bar</revision>    </page> <page> <revision>1</revision></page>     <page>     <header/> <revision>first</revision><revision>second</revision><revision>third</revision><revision>n</revision><revision>n+1</revision>    </page>\n" + "  <page>  <longlongheader/><revision>e</revision>    </page>     <page><revision>1</revision>foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-foo-bar-<revision>2</revision>\n");
     } finally {
       txtWriter.flush();
       txtWriter.close();
@@ -106,12 +106,13 @@ public class TestStreamWikiDumpInputFormat {
     format.configure(job);
     List<String> found = collect(format, job, 1);
     assertEquals(Arrays.asList(new String[]{
-          "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
-          "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
-          "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
-          "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
-          "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
-          "<page><longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
+          "<page> <revision beginningofpage=\"true\"></revision>\n<revision>1</revision>\n</page>\n",
+          "<page>     <header/> <revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
+          "<page>     <header/> <revision>first</revision><revision>second</revision>\n</page>\n",
+          "<page>     <header/> <revision>second</revision><revision>third</revision>\n</page>\n",
+          "<page>     <header/> <revision>third</revision><revision>n</revision>\n</page>\n",
+          "<page>     <header/> <revision>n</revision><revision>n+1</revision>\n</page>\n",
+          "<page>  <longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
         }), found);
   }
 
