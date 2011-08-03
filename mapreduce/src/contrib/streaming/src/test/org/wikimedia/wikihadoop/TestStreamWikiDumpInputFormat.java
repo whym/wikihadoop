@@ -49,7 +49,6 @@ public class TestStreamWikiDumpInputFormat {
   @Test
   public void testFormatWithOneSplitUncompressed() throws IOException {
     JobConf job = new JobConf(conf);
-    job.set("stream.recordreader.class", "org.wikimedia.wikihadoop.StreamWikiDumpRecordReader");
     FileSystem fs = FileSystem.getLocal(conf);
     Path dir = new Path(System.getProperty("test.build.data", ".") + "/mapred");
     Path txtFile = new Path(dir, "auto.txt");
@@ -61,7 +60,7 @@ public class TestStreamWikiDumpInputFormat {
     Writer txtWriter = new OutputStreamWriter(fs.create(txtFile));
     try {
       txtWriter.write("<tree><page><header/><revision>first</revision><revision>second</revision><revision>third</revision><revision>n</revision><revision>n+1</revision></page>\n"
-                      + "<page><longlongheader/><revision>e</revision></page></tree>\n"
+                      + "<page><longlongheader/><revision>e</revision></page>\n"
                       + "<page><long-long-long-header/><revision>f</revision></page></tree>\n");
     } finally {
       txtWriter.flush();
@@ -82,10 +81,10 @@ public class TestStreamWikiDumpInputFormat {
           "<page><long-long-long-header/><revision beginningofpage=\"true\"></revision>\n<revision>f</revision>\n</page>\n",
         }), found);
   }
+
   @Test
     public void testFormatWithOneSplitUncompressedFragmentsAndSpaces() throws IOException {
     JobConf job = new JobConf(conf);
-    job.set("stream.recordreader.class", "org.wikimedia.wikihadoop.StreamWikiDumpRecordReader");
     FileSystem fs = FileSystem.getLocal(conf);
     Path dir = new Path(System.getProperty("test.build.data", ".") + "/mapred");
     Path txtFile = new Path(dir, "auto.txt");
