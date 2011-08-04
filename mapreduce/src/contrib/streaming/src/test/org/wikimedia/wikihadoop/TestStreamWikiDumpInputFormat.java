@@ -31,6 +31,7 @@ import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.InputSplit;
+import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.RecordReader;
@@ -43,8 +44,6 @@ import static org.junit.Assert.*;
 public class TestStreamWikiDumpInputFormat {
 
   private static Configuration conf = new Configuration();
-
-  private static final int SPLITS_COUNT = 2;
 
   @Test
   public void testFormatWithOneSplitUncompressed() throws IOException {
@@ -157,6 +156,98 @@ public class TestStreamWikiDumpInputFormat {
   }
 
   @Test
+  public void testSplitUncompressed() throws IOException {
+    JobConf job = new JobConf(conf);
+    FileSystem fs = FileSystem.getLocal(conf);
+    Path dir = new Path(System.getProperty("test.build.data", ".") + "/mapred");
+    Path txtFile = new Path(dir, "auto.txt");
+
+    fs.delete(dir, true);
+
+    StreamWikiDumpInputFormat.setInputPaths(job, dir);
+
+    Writer txtWriter = new OutputStreamWriter(fs.create(txtFile));
+    try {
+      txtWriter.write("<page><revision>AB</revision>          \n");
+      txtWriter.write("<revision>C</revision>           <revisio");
+      txtWriter.write("n>DER</revision></page> <page><revision>");
+      txtWriter.write("long-long-long-long-long-long-long-long-");
+      txtWriter.write("long-long-long-long-long-long-long-long-");
+      txtWriter.write("long-long-long-revision. </revision></pa");
+      txtWriter.write("ge>\n");
+    } finally {
+      txtWriter.flush();
+      txtWriter.close();
+    }
+
+    StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
+    format.configure(job);
+
+    for ( Integer len: new Integer[]{20, 40, 50} ) {
+      long size = 0;
+      long n = 0;
+      for ( InputSplit is: format.getSplits(job, fs.getFileStatus(txtFile), "</page>", len) ) {
+        FileSplit split = (FileSplit)is;
+        size += split.getLength();
+        String str = new String(read(split, job));
+        str = str.trim();
+        if ( str.length() == 0 ) continue;
+        if ( str.indexOf("<page>") >= 0 && !(str.indexOf("</page>") >= 0) ) {
+          assertTrue("page fragment in \"" + str + "\"", false);
+        }
+        assertTrue("no </page> in \"" + str + "\"", str.indexOf("</page>") >= 0);
+        ++n;
+      }
+      assertTrue("total size is too small: expected: " + fs.getFileStatus(txtFile).getLen() + ", found: " + size, fs.getFileStatus(txtFile).getLen() <= size);
+      assertTrue("number of splits is too large: expected: " + size/len + ", found: " + n, size/len >= n);
+    }
+  }
+
+  @Test
+  public void testSplitCompressed() throws IOException {
+    JobConf job = new JobConf(conf);
+    FileSystem fs = FileSystem.getLocal(conf);
+    Path dir = new Path(System.getProperty("test.build.data", ".") + "/mapred");
+    Path txtFile = new Path(dir, "auto.bz2");
+
+    fs.delete(dir, true);
+
+    StreamWikiDumpInputFormat.setInputPaths(job, dir);
+
+    OutputStream writer = fs.create(txtFile);
+
+    try {
+      writer.write(bzip2(("<page><revision>AB</revision>          \n"
+                             + "<revision>C</revision>           <revisio"
+                             + "n>DER</revision></page> <page><revision>"
+                             + "long-long-long-long-long-long-long-long-"
+                             + "long-long-long-long-long-long-long-long-"
+                             + "long-long-long-revision. </revision></pa"
+                             + "ge>\n").getBytes("UTF-8")));
+    } finally {
+      writer.flush();
+      writer.close();
+    }
+
+    StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
+    format.configure(job);
+
+    for ( Integer len: new Integer[]{10, 20, 40} ) {
+      long size = 0;
+      for ( InputSplit is: format.getSplits(job, fs.getFileStatus(txtFile), "</page>", len) ) {
+        FileSplit split = (FileSplit)is;
+        size += split.getLength();
+        String str = new String(read(split, job));
+        str = str.trim();
+        if ( str.length() == 0 ) continue;
+        assertTrue("no </page> in \"" + str + "\"", str.indexOf("</page>") >= 0);
+        assertTrue("no <page> in \"" + str + "\"", str.indexOf("<page>") >= 0);
+      }
+      assertTrue("total size is too small: expected: " + fs.getFileStatus(txtFile).getLen() + ", found: " + size, fs.getFileStatus(txtFile).getLen() <= size);
+    }
+  }
+
+  @Test
   public void testFormatWithCompressed() throws IOException {
     JobConf job = new JobConf(conf);
     FileSystem fs = FileSystem.getLocal(conf);
@@ -178,15 +269,17 @@ public class TestStreamWikiDumpInputFormat {
 
     StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
     format.configure(job);
-    List<String> found = collect(format, job, 3);
-    assertEquals(Arrays.asList(new String[]{
-          "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
-          "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
-          "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
-          "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
-          "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
-          "<page><longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
-        }), found);
+    for ( Integer n: new Integer[]{1,2,3,4,5} ) {
+      List<String> found = collect(format, job, n);
+      assertEquals(Arrays.asList(new String[]{
+            "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
+            "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
+            "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
+            "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
+            "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
+            "<page><longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
+          }), found);
+    }
   }
 
   private static List<String> collect(FileInputFormat<Text,Text> format, JobConf job, int n) throws IOException {
@@ -204,6 +297,17 @@ public class TestStreamWikiDumpInputFormat {
       }
     }
     return found;
+  }
+
+  private static String read(FileSplit split, JobConf job) throws IOException {
+    StringBuffer buff = new StringBuffer();
+    SeekableInputStream is = SeekableInputStream.getInstance(split, FileSystem.getLocal(conf), new CompressionCodecFactory(job));
+    byte[] buf = new byte[2048];
+    int len = 0;
+    while ( (len=is.read(buf)) >= 0 ) {
+      buff.append(new String(buf, 0, len));
+    }
+    return buff.toString();
   }
 
   private static String snip(String str, int snip) {
@@ -244,7 +348,7 @@ public class TestStreamWikiDumpInputFormat {
     }
     int num  = 1;
     if ( System.getProperty("splitnum") != null ) {
-      len = Integer.parseInt(System.getProperty("splitnum"));
+      num = Integer.parseInt(System.getProperty("splitnum"));
     }
 
     for (InputSplit split : format.getSplits(job, num)) {

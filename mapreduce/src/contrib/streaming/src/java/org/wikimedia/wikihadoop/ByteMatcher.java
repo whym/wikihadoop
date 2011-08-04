@@ -23,31 +23,34 @@ import java.io.*;
 import org.apache.hadoop.io.DataOutputBuffer;
 import org.apache.hadoop.fs.Seekable;
 
-
 public class ByteMatcher {
   private final InputStream in;
   private final Seekable pos;
   private long lastPos;
   private long bytes;
-  private final long end;
-  public ByteMatcher(InputStream in, Seekable pos, long end) throws IOException {
+  public ByteMatcher(InputStream in, Seekable pos) throws IOException {
     this.in = in;
     this.pos = pos;
     this.bytes = 0;
-    this.end = end;
     this.lastPos = pos.getPos();
   }
-  public long getReadBytes() { return this.bytes; }
-  public long getPos() throws IOException { return this.pos.getPos(); }
-  public boolean finished() throws IOException { return this.pos.getPos() >= this.end; }
-  public long getLastPos() { return this.lastPos; }
+  public ByteMatcher(SeekableInputStream is) throws IOException {
+    this(is, is);
+  }
+  public long getReadBytes() {
+    return this.bytes;
+  }
+  public long getPos() throws IOException {
+    return this.pos.getPos();
+  }
+  public long getLastUnmatchPos() { return this.lastPos; }
 
   public void skip(long len) throws IOException {
     this.in.skip(len);
     this.bytes += len;
   }
 
-  boolean readUntilMatch(String textPat, DataOutputBuffer outBufOrNull) throws IOException {
+  boolean readUntilMatch(String textPat, DataOutputBuffer outBufOrNull, long end) throws IOException {
     byte[] match = textPat.getBytes("UTF-8");
     int i = 0;
     while (true) {
@@ -69,7 +72,7 @@ public class ByteMatcher {
           return true;
       } else {
         i = 0;
-        //pos.proceed(i + 1);
+        this.lastPos = this.getPos();
       }
       // see if we've passed the stop point:
       if (outBufOrNull == null && i == 0 && this.pos.getPos() >= end) {

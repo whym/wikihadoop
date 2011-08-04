@@ -46,29 +46,33 @@ public class SeekableInputStream extends FilterInputStream implements Seekable {
     this.seek = in;
     this.sin = null;
   }
-  public static SeekableInputStream getInstance(FileSplit split, FileSystem fs, CompressionCodecFactory compressionCodecs) throws IOException {
-    CompressionCodec codec = compressionCodecs.getCodec(split.getPath());
-    FSDataInputStream din = fs.open(split.getPath());
+  public static SeekableInputStream getInstance(Path path, long start, long end, FileSystem fs, CompressionCodecFactory compressionCodecs) throws IOException {
+    CompressionCodec codec = compressionCodecs.getCodec(path);
+    FSDataInputStream din = fs.open(path);
     if (codec != null) {
       Decompressor decompressor = CodecPool.getDecompressor(codec);
       if (codec instanceof SplittableCompressionCodec) {
         SplittableCompressionCodec scodec = (SplittableCompressionCodec)codec;
         SplitCompressionInputStream cin = scodec.createInputStream
-          (din, decompressor, split.getStart(), split.getStart() + split.getLength(),
+          (din, decompressor, start, end,
            SplittableCompressionCodec.READ_MODE.BYBLOCK);
         return new SeekableInputStream(cin);
       } else {
         // non-splittable compression input stream
         // no seeking or offsetting is needed
+        assert start == 0;
         CompressionInputStream cin = codec.createInputStream(din, decompressor);
         return new SeekableInputStream(cin, din);
       }
     } else {
       // non compression input stream
       // we seek to the start of the split
-      din.seek(split.getStart());
+      din.seek(start);
       return new SeekableInputStream(din);
     }
+  }
+  public static SeekableInputStream getInstance(FileSplit split, FileSystem fs, CompressionCodecFactory compressionCodecs) throws IOException {
+    return getInstance(split.getPath(), split.getStart(), split.getStart() + split.getLength(), fs, compressionCodecs);
   }
   public SplitCompressionInputStream getSplitCompressionInputStream() { return this.sin; }
   public long getPos() throws IOException { return this.seek.getPos(); }
