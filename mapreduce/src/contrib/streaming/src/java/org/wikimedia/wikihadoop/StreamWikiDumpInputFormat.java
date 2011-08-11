@@ -122,7 +122,9 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         (path, 0, length, fs, this.compressionCodecs);
       SplitCompressionInputStream is = in.getSplitCompressionInputStream();
       long start = 0;
+      long start_offset = 0;
       if ( is != null ) {
+        start = is.getAdjustedStart();
         length = is.getAdjustedEnd();
         is.close();
         in = null;
@@ -130,40 +132,48 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       LOG.info("locations=" + Arrays.asList(blkLocations));
       ByteMatcher matcher = null;
       FileSplit split = null;
-      while (((double) bytesRemaining)/splitSize > 1.1  &&  bytesRemaining > 0) {
+      long lastSplitSize = splitSize;
+      Set<Long> processedPageEnds = new HashSet<Long>();
+      double factor = 2.0;
+      while (((double) bytesRemaining)/lastSplitSize > factor  &&  bytesRemaining > 0) {
         if (matcher == null) {
-          // read until the next page end
+          long st = Math.min(start + lastSplitSize, length - 1);
           split = makeSplit(path,
-                            Math.min(start + splitSize, length - 1),
-                            Math.min(splitSize, length - (start + splitSize)),
+                            st,
+                            Math.min(lastSplitSize, length - st),
                             clusterMap, blkLocations);
+          System.err.println("split move to: " + split);
+          lastSplitSize = splitSize;
           if ( in != null )
             in.close();
-          if ( split.getLength() == 0 ) {
+          if ( split.getLength() <= 1 ) {
             break;
           }
           in = SeekableInputStream.getInstance(split,
                                                fs, this.compressionCodecs);
+          SplitCompressionInputStream cin = in.getSplitCompressionInputStream();
           matcher = new ByteMatcher(in);
         }
-        if ( matcher.readUntilMatch(pageEndPattern, null, split.getStart() + split.getLength()) ) {
+        // read until the next page end in the look-ahead split
+        if ( matcher.readUntilMatch(pageEndPattern, null, split.getStart() + split.getLength())
+             &&  matcher.getPos() > matcher.getLastUnmatchPos()
+             &&  !processedPageEnds.contains(matcher.getPos()) ) {
           splits.add(makeSplit(path, start, matcher.getPos() - start, clusterMap, blkLocations));
           System.err.println(path + ": #" + splits.size() + " " + pageEndPattern + " found: pos=" + matcher.getPos() + " last=" + matcher.getLastUnmatchPos() + " read=" + matcher.getReadBytes() + " current=" + start + " remaining=" + bytesRemaining + " split=" + split);
-          split = makeSplit(path,
-                            Math.min(matcher.getPos() + splitSize, length - 1),
-                            Math.min(splitSize, length - (matcher.getPos() + splitSize)),
-                            clusterMap, blkLocations);
-          bytesRemaining -= matcher.getLastUnmatchPos() - start;
-          start = matcher.getLastUnmatchPos();
-          if ( split.getLength() == 0 ) {
-            break;
-          }
+          processedPageEnds.add(matcher.getPos());
+          long newstart = Math.max(matcher.getLastUnmatchPos(), start);
+          bytesRemaining -= newstart - start;
+          start = newstart;
           matcher = null;
         } else {
           if (matcher.getPos() >= length)
             break;
-          System.err.println(path + ": #" + splits.size() + " " + pageEndPattern + " not found: pos=" + matcher.getPos() + " last=" + matcher.getLastUnmatchPos() + " read=" + matcher.getReadBytes() + " current=" + start + " remaining=" + bytesRemaining);
-          split = makeSplit(path, split.getStart(), Math.min(split.getLength() * 2, length - split.getStart()), clusterMap, blkLocations);
+          System.err.println(path + ": #" + splits.size() + " " + pageEndPattern + " not found: pos=" + matcher.getPos() + " last=" + matcher.getLastUnmatchPos() + " read=" + matcher.getReadBytes() + " current=" + start + " remaining=" + bytesRemaining + " split=" + split);
+          split = makeSplit(path,
+                            split.getStart(),
+                            Math.min((long)(split.getLength() * factor), length - split.getStart()),
+                            clusterMap, blkLocations);
+          lastSplitSize = split.getLength();
         }
       }
       
