@@ -54,6 +54,12 @@ How to use
 
 .. [#] You can run tests here.  To run tests, run ``ant compile-test``, add ``:../../../build/classes:../../../build/classes/:../../../build/contrib/streaming/classes:../../../build/contrib/streaming/test:../../../build/ivy/lib/Hadoop-Common/common/guava*.jar`` to the ``CLASSPATH`` environmental variable and run ``java org.junit.runner.JUnitCore org.wikimedia.wikihadoop.TestStreamWikiDumpInputFormat``
 
+Input & Output format
+=============================
+Input can be Wikipedia XML dumps either as compressed in bzip2 (this is what you can directly get from the distribution site) or uncompressed.
+
+Output is in the following format.
+
 Requirements
 ==============================
 Following softwares are required.
@@ -68,10 +74,20 @@ To process an English Wikipedia dump with the default mapper: ::
 
    hadoop jar hadoop-$\{version\}-streaming.jar -input /enwiki-20110722-pages-meta-history27.xml.bz2 -output /usr/hadoop/out -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat
 
-Known problems
+Mechanism
 ==============================
 
-- Timeout when pages are too long.  You might need to set ``mapred.task.timeout`` longer than 6000000. Before it starts parsing the data and reporting the progress, WikiHadoop can take more than 600 minutes to preprocess XML dumps.
+Splitting
+----------------
+
+Parsing
+----------------
+WikiHadoop's parser can be seen as a SAX parser that is tuned for Wikipedia dump XMLs.  By limiting its flexibility, it is supposed to achieve higher efficiency.  Instead of extracting all occurrence of elements and attributes, it only looks for beginnings and endings of ``page`` elements and ``revision`` elements.
+
+Known problems
+==============================
+- The default size of minimum split tends to be too small.  Try changing it to a larger value by setting ``mapreduce.input.fileinputformat.split.minsize`` to, for example, 500000000.
+- Timeout when pages are too long.  Try setting ``mapreduce.task.timeout`` longer than 6000000. Before it starts parsing the data and reporting the progress, WikiHadoop can take more than 600 minutes to preprocess XML dumps.
 - Missing revisions.
 
 .. Local variables:
