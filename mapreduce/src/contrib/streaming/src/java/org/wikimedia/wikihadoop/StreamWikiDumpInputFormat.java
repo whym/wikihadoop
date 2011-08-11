@@ -73,7 +73,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
    * @throws IOException
    */
   @Override public InputSplit[] getSplits(JobConf job, int numSplits) throws IOException {
-    System.err.println("StreamWikiDumpInputFormat.getSplits job=" + job + " n=" + numSplits);
+    LOG.info("StreamWikiDumpInputFormat.getSplits job=" + job + " n=" + numSplits);
     InputSplit[] oldSplits = super.getSplits(job, numSplits);
     List<InputSplit> splits = new ArrayList<InputSplit>();
     FileStatus[] files = listStatus(job);
@@ -94,7 +94,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       }
       long blockSize = file.getBlockSize();
       long splitSize = computeSplitSize(goalSize, minSize, blockSize);
-      System.err.println(String.format("goalsize=%d splitsize=%d blocksize=%d", goalSize, splitSize, blockSize));
+      LOG.info(String.format("goalsize=%d splitsize=%d blocksize=%d", goalSize, splitSize, blockSize));
+      //System.err.println(String.format("goalsize=%d splitsize=%d blocksize=%d", goalSize, splitSize, blockSize));
       for (InputSplit x: getSplits(job, file, pageBeginPattern, splitSize) ) 
         splits.add(x);
     }
@@ -126,7 +127,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         is.close();
         in = null;
       }
-      System.err.println("loca=" + Arrays.asList(blkLocations));
+      LOG.info("locations=" + Arrays.asList(blkLocations));
       ByteMatcher matcher = null;
       FileSplit split = null;
       while (((double) bytesRemaining)/splitSize > 1.1  &&  bytesRemaining > 0) {
@@ -166,20 +167,19 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         }
       }
       
-      if (bytesRemaining >= 0) {
-        System.err.println(pageEndPattern + "remaining : pos=" + (length-bytesRemaining) + " end=" + length);
+      if (bytesRemaining > 0) {
+        System.err.println(pageEndPattern + " remaining: pos=" + (length-bytesRemaining) + " end=" + length);
         splits.add(makeSplit(path, length-bytesRemaining, bytesRemaining, 
                              blkLocations[blkLocations.length-1].getHosts()));
       }
       if ( in != null )
         in.close();
     } else if (length != 0) {
-      String[] splitHosts = getSplitHosts(blkLocations,0,length,clusterMap);
-      splits.add(makeSplit(path, 0, length, splitHosts));
+      splits.add(makeSplit(path, 0, length, clusterMap, blkLocations));
     } else { 
       //Create empty hosts array for zero length files
       splits.add(makeSplit(path, 0, length, new String[0]));
-    }    
+    }
     return splits;
   }
 
@@ -263,8 +263,11 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       }
     
     @Override synchronized public boolean next(Text key, Text value) throws IOException {
-      //System.err.println("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPos() + " read=" + this.getReadBytes() + " pageBytes=" + pageBytes);//!
-      LOG.info("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPos() + " pageBytes=" + pageBytes);
+      //LOG.info("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPos());
+
+        if ( this.nextPageBegin() < 0 ) {
+          return false;
+        }
       
       //System.err.println("0.2 check pos="+this.getPos() + " end="+this.end);//!
       if (this.currentPageNum >= this.pageBytes.size() / 2  ||  this.getReadBytes() >= this.tailPageEnd()) {
@@ -287,6 +290,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
           this.currentPageNum++;
           reporter.incrCounter(WikiDumpCounters.WRITTEN_PAGES, 1);
           //System.err.println("4.6 exceed");//!
+        } else {
         }
       }
       
@@ -307,8 +311,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       key.set(record);
       //System.out.print(key.toString());//!
       value.set("");
-      this.reporter.setStatus("StreamWikiDumpInputFormat: write new record pos=" + this.getPos() + " bytes=" + this.getReadBytes());
-      System.err.println("StreamWikiDumpInputFormat: write new record pos=" + this.getPos() + " bytes=" + this.getReadBytes() + " next=" + this.nextPageBegin() + " prev=" + this.prevPageEnd());//!
+      this.reporter.setStatus("StreamWikiDumpInputFormat: write new record pos=" + this.getPos() + " bytes=" + this.getReadBytes() + " next=" + this.nextPageBegin() + " prev=" + this.prevPageEnd());
       reporter.incrCounter(WikiDumpCounters.WRITTEN_REVISIONS, 1);
       
       allWrite(this.prevRevision, this.bufInRev);
@@ -335,10 +338,10 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       }
     }
     private long nextPageBegin() {
-      if ( (this.currentPageNum + 1) * 2 < this.pageBytes.size() - 1 ) {
+      if ( (this.currentPageNum + 1) * 2 < this.pageBytes.size() ) {
         return this.pageBytes.get((this.currentPageNum + 1) * 2);
       } else {
-        return this.end;
+        throw new IllegalArgumentException();
       }
     }
     private long prevPageEnd() {
@@ -346,12 +349,12 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         if ( this.pageBytes.size() > 0 ) {
           return this.pageBytes.get(0);
         } else {
-          return this.start;
+          return 0;
         }
       } else if ( this.currentPageNum * 2 - 1 <= this.pageBytes.size() - 1 ) {
         return this.pageBytes.get(this.currentPageNum * 2 - 1);
       } else {
-        return this.end;
+        return this.pageBytes.get(this.pageBytes.size() - 1);
       }
     }  
   
@@ -424,12 +427,17 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         ret.add(matcher.getReadBytes() - pageBeginPattern.getBytes("UTF-8").length);
         if ( matcher.getPos() >= end || !matcher.readUntilMatch(pageEndPattern, null, end) ) {
           System.err.println("could not find "+pageEndPattern+", page over a split?  pos=" + matcher.getPos() + " bytes=" + matcher.getReadBytes());
-          ret.remove(ret.size() - 1);
+          //ret.add(end);
           break;
         }
         ret.add(matcher.getReadBytes() - pageEndPattern.getBytes("UTF-8").length);
-        reporter.setStatus(String.format("StreamWikiDumpInputFormat: find page %6d start=%d pos=%d end=%d bytes=%d", ret.size(), start, matcher.getPos(), end, matcher.getReadBytes()));
+        String report = String.format("StreamWikiDumpInputFormat: find page %6d start=%d pos=%d end=%d bytes=%d", ret.size(), start, matcher.getPos(), end, matcher.getReadBytes());
+        reporter.setStatus(report);
         reporter.incrCounter(WikiDumpCounters.FOUND_PAGES, 1);
+        LOG.info(report);
+      }
+      if ( ret.size() % 2 == 0 ) {
+        ret.add(matcher.getReadBytes());
       }
       //System.err.println("getPageBytes " + ret);//!
       return ret;
@@ -469,7 +477,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       }
     }
     // throw new IllegalArgumentException("pattern not found: " + new String(match) + " in " + new String(from));
-    System.err.println("pattern not found: " + new String(match) + " in " + new String(from));//!
+    System.err.println("pattern not found: " + new String(match) + " in " + new String(from, 0, from_.getLength()));//!
     return -1;
   }
 

@@ -31,10 +31,12 @@ import org.apache.hadoop.io.Text;
 import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.JobConf;
+import org.apache.hadoop.mapred.Counters;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.io.compress.*;
+import org.apache.hadoop.io.compress.bzip2.*;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -113,8 +115,11 @@ public class TestStreamWikiDumpInputFormat {
   }
 
   private static byte[] bzip2(byte[] bytes) throws IOException {
+    return bzip2(bytes, 1);
+  }
+  private static byte[] bzip2(byte[] bytes, int bsize) throws IOException {
     ByteArrayOutputStream os = new ByteArrayOutputStream();
-    CompressionOutputStream c = new BZip2Codec().createOutputStream(os);
+    CBZip2OutputStream c = new CBZip2OutputStream(os, bsize);
     c.write(bytes);
     c.finish();
     c.flush();
@@ -201,12 +206,26 @@ public class TestStreamWikiDumpInputFormat {
     }
   }
 
+  private static String upperCaseRegion(String orig, int start, int end) {
+    if ( 0 < start && start < end && end <= orig.length() ) {
+      return orig.substring(0, start) +
+        orig.substring(start, end).toUpperCase() +
+        orig.substring(end);
+    } else {
+      return orig;
+    }
+  }
+
+  private static int rand(int n) {
+    return (int)(n*Math.random());
+  }
+
   @Test
   public void testSplitCompressed() throws IOException {
     JobConf job = new JobConf(conf);
     FileSystem fs = FileSystem.getLocal(conf);
     Path dir = new Path(System.getProperty("test.build.data", ".") + "/mapred");
-    Path txtFile = new Path(dir, "auto.bz2");
+    Path txtFile = new Path(dir, "testSplitCompressed.bz2");
 
     fs.delete(dir, true);
 
@@ -215,13 +234,24 @@ public class TestStreamWikiDumpInputFormat {
     OutputStream writer = fs.create(txtFile);
 
     try {
-      writer.write(bzip2(("<page><revision>AB</revision>          \n"
-                             + "<revision>C</revision>           <revisio"
-                             + "n>DER</revision></page> <page><revision>"
-                             + "long-long-long-long-long-long-long-long-"
-                             + "long-long-long-long-long-long-long-long-"
-                             + "long-long-long-revision. </revision></pa"
-                             + "ge>\n").getBytes("UTF-8")));
+      StringBuffer buff = new StringBuffer
+        ("<page><revision>AB</revision>          \n" +
+         "<revision>C</revision>          <revisio" +
+         "n>DER</revision></page> <page><revision>" +
+         "long-long-long-long-long-long-long-long-" +
+         "long-long-long-revision. </revision></pa");
+      for ( Integer len: new Integer[]{81920, 80000, 80001} ) {
+        buff.append("ge> <page><revision>long-long-long-long-");
+        for ( int i = 0; i < len; ++i ) {
+          buff.append(upperCaseRegion(String.format("long-long-long--No%5d/%5d-long-long ", i, len), rand(40), rand(40)));
+          buff.append(upperCaseRegion(String.format("long revision</revision>\n<revision>%5d", i), 0, 0));
+          buff.append(upperCaseRegion(String.format("long-long-long-long-%4d-long-long-long-", rand(1000)), rand(40), rand(40)));
+        }
+        buff.append("long-long-long-revision. </revision></pa");
+      }
+      buff.append("ge>\n");
+      //System.out.print(buff);
+      writer.write(bzip2(buff.toString().getBytes("UTF-8")));
     } finally {
       writer.flush();
       writer.close();
@@ -230,16 +260,18 @@ public class TestStreamWikiDumpInputFormat {
     StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
     format.configure(job);
 
-    for ( Integer len: new Integer[]{10, 20, 40} ) {
+    for ( Integer len: new Integer[]{200000, 400000, 100000, 800000} ) {
       long size = 0;
       for ( InputSplit is: format.getSplits(job, fs.getFileStatus(txtFile), "</page>", len) ) {
         FileSplit split = (FileSplit)is;
+        System.err.println("split " + len + ": " + split);
         size += split.getLength();
         String str = new String(read(split, job));
         str = str.trim();
         if ( str.length() == 0 ) continue;
-        assertTrue("no </page> in \"" + str + "\"", str.indexOf("</page>") >= 0);
-        assertTrue("no <page> in \"" + str + "\"", str.indexOf("<page>") >= 0);
+        System.err.println("str: " + snip(str, 200));
+        assertTrue("no </page> in \"" + snip(str, 200) + "\"", str.indexOf("</page>") >= 0);
+        assertTrue("no <page> in \""  + snip(str, 200) + "\"", str.indexOf("<page>") >= 0);
       }
       assertTrue("total size is too small: expected: " + fs.getFileStatus(txtFile).getLen() + ", found: " + size, fs.getFileStatus(txtFile).getLen() <= size);
     }
@@ -283,7 +315,7 @@ public class TestStreamWikiDumpInputFormat {
   private static List<String> collect(FileInputFormat<Text,Text> format, JobConf job, int n) throws IOException {
     List<String> found = new ArrayList<String>();
     for (InputSplit split : format.getSplits(job, n)) {
-      RecordReader<Text,Text> reader = format.getRecordReader(split, job, Reporter.NULL);
+      RecordReader<Text,Text> reader = format.getRecordReader(split, job, getReporter(split));
       Text key = reader.createKey();
       Text value = reader.createValue();
       try {
@@ -297,6 +329,35 @@ public class TestStreamWikiDumpInputFormat {
     return found;
   }
 
+  private static Reporter getReporter(final InputSplit split) {
+    return new Reporter() {
+      public void setStatus(String s) {
+        System.err.println(s);
+      }
+      public void progress() {
+      }
+      public Counters.Counter getCounter(Enum<?> name) {
+        return null;
+      }
+      public Counters.Counter getCounter(String group, String name) {
+        return null;
+      }
+      public void incrCounter(Enum<?> key, long amount) {
+        //System.err.println(key.toString() + " is incremented by " + amount);
+      }
+      public void incrCounter(String group, String counter, long amount) {
+        //System.err.println(group.toString() + " " + counter + " is incremented by " + amount);
+      }
+      public InputSplit getInputSplit() throws UnsupportedOperationException {
+        return split;
+      }
+      @Override
+        public float getProgress() {
+        return 0;
+      }
+    };
+  }
+
   private static String read(FileSplit split, JobConf job) throws IOException {
     StringBuffer buff = new StringBuffer();
     SeekableInputStream is = SeekableInputStream.getInstance(split, FileSystem.getLocal(conf), new CompressionCodecFactory(job));
@@ -304,6 +365,9 @@ public class TestStreamWikiDumpInputFormat {
     int len = 0;
     while ( (len=is.read(buf)) >= 0 ) {
       buff.append(new String(buf, 0, len));
+      if ( is.getPos() >= split.getStart() + split.getLength() ) {
+        break;
+      }
     }
     return buff.toString();
   }
@@ -348,13 +412,18 @@ public class TestStreamWikiDumpInputFormat {
     if ( System.getProperty("splitnum") != null ) {
       num = Integer.parseInt(System.getProperty("splitnum"));
     }
+    boolean verbose = false;
+    if ( System.getProperty("verbose") != null ) {
+      verbose = true;
+    }
 
     for (InputSplit split : format.getSplits(job, num)) {
       System.err.println(split);
-      RecordReader reader = format.getRecordReader(split, job, Reporter.NULL);
+      RecordReader reader = format.getRecordReader(split, job, verbose? getReporter(split): Reporter.NULL);
       try {
         while (reader.next(key, value)) {
-          System.err.println("key: (" + key.toString().length() + ") " + snip(key.toString(), len));
+          if (verbose)
+            System.err.println("key: (" + key.toString().length() + ") " + snip(key.toString(), len));
           System.out.println(key.toString());
         }
       } finally {
@@ -362,5 +431,4 @@ public class TestStreamWikiDumpInputFormat {
       }
     }
   }
-
 }

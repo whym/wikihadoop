@@ -25,12 +25,14 @@ public class ByteMatcher {
   private final InputStream in;
   private final Seekable pos;
   private long lastPos;
+  private long currentPos;
   private long bytes;
   public ByteMatcher(InputStream in, Seekable pos) throws IOException {
     this.in = in;
     this.pos = pos;
     this.bytes = 0;
     this.lastPos = pos.getPos();
+    this.currentPos = pos.getPos();
   }
   public ByteMatcher(SeekableInputStream is) throws IOException {
     this(is, is);
@@ -70,10 +72,13 @@ public class ByteMatcher {
           return true;
       } else {
         i = 0;
-        this.lastPos = this.getPos();
+        if ( this.currentPos != this.getPos() ) {
+          this.lastPos = this.currentPos;
+          this.currentPos = this.getPos();
+        }
       }
       // see if we've passed the stop point:
-      if (outBufOrNull == null && i == 0 && this.pos.getPos() >= end) {
+      if (i == 0 && this.pos.getPos() >= end) {
         System.err.println("eof 2");
         return false;
       }
