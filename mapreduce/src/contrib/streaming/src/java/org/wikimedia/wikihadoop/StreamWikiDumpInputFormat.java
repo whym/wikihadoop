@@ -39,17 +39,84 @@ import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.io.compress.*;
 
 /** A InputFormat implementation that splits a Wikimedia Dump File into page fragments, and emits them as input records.
- *  A key contains a pair of continued revisions and the page element that the revisions belong to in the following format.
+ * The record reader embedded in this input format converts a page into a sequence of page-like elements, each of which contains two consecutive revisions.  Output is given as keys with empty values.
+ *
+ * For example,  Given the following input containing two pages and four revisions,
+ * <pre><code>
  *  &lt;page&gt;
- *    &lt;title&gt;....&lt;/title&gt;
- *    &lt;id&gt;....&lt;/id&gt;
+ *    &lt;title&gt;ABC&lt;/title&gt;
+ *    &lt;id&gt;123&lt;/id&gt;
  *    &lt;revision&gt;
+ *      &lt;id&gt;100&lt;/id&gt;
  *      ....
  *    &lt;/revision&gt;
  *    &lt;revision&gt;
+ *      &lt;id&gt;200&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *    &lt;revision&gt;
+ *      &lt;id&gt;300&lt;/id&gt;
  *      ....
  *    &lt;/revision&gt;
  *  &lt;/page&gt;
+ *  &lt;page&gt;
+ *    &lt;title&gt;DEF&lt;/title&gt;
+ *    &lt;id&gt;456&lt;/id&gt;
+ *    &lt;revision&gt;
+ *      &lt;id&gt;400&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *  &lt;/page&gt;
+ * </code></pre>
+ * it will produce four keys like this:
+ * <pre><code>
+ *  &lt;page&gt;
+ *    &lt;title&gt;ABC&lt;/title&gt;
+ *    &lt;id&gt;123&lt;/id&gt;
+ *    &lt;revision&gt;&lt;revision beginningofpage="true"&gt;&lt;text xml:space="preserve"&gt;&lt;/text&gt;&lt;/revision&gt;&lt;revision&gt;
+ *      &lt;id&gt;100&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *  &lt;/page&gt;
+ * </code></pre>
+ * <pre><code>
+ *  &lt;page&gt;
+ *    &lt;title&gt;ABC&lt;/title&gt;
+ *    &lt;id&gt;123&lt;/id&gt;
+ *    &lt;revision&gt;
+ *      &lt;id&gt;100&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *    &lt;revision&gt;
+ *      &lt;id&gt;200&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *  &lt;/page&gt;
+ * </code></pre>
+ * <pre><code>
+ *  &lt;page&gt;
+ *    &lt;title&gt;ABC&lt;/title&gt;
+ *    &lt;id&gt;123&lt;/id&gt;
+ *    &lt;revision&gt;
+ *      &lt;id&gt;200&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *    &lt;revision&gt;
+ *      &lt;id&gt;300&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *  &lt;/page&gt;
+ * </code></pre>
+ * <pre><code>
+ *  &lt;page&gt;
+ *    &lt;title&gt;DEF&lt;/title&gt;
+ *    &lt;id&gt;456&lt;/id&gt;
+ *    &lt;revision&gt;&lt;revision beginningofpage="true"&gt;&lt;text xml:space="preserve"&gt;&lt;/text&gt;&lt;/revision&gt;&lt;revision&gt;
+ *      &lt;id&gt;400&lt;/id&gt;
+ *      ....
+ *    &lt;/revision&gt;
+ *  &lt;/page&gt;
+ * </code></pre>
  */
 public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
 
@@ -215,7 +282,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       this.prevRevision = new DataOutputBuffer();
       this.pageFooter = getBuffer("\n</page>\n".getBytes("UTF-8"));
       this.revHeader  = getBuffer(this.revisionBeginPattern.getBytes("UTF-8"));
-      this.firstDummyRevision = getBuffer(" beginningofpage=\"true\"></revision>\n".getBytes("UTF-8"));
+      this.firstDummyRevision = getBuffer(" beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n".getBytes("UTF-8"));
       this.bufInRev = new DataOutputBuffer();
       this.bufBeforeRev = new DataOutputBuffer();
       this.split = split;

@@ -71,13 +71,13 @@ public class TestStreamWikiDumpInputFormat {
     List<String> found = collect(format, job, 1);
 
     assertEquals(Arrays.asList(new String[]{
-          "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
+          "<page><header/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>first</revision>\n</page>\n",
           "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
           "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
           "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
           "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
-          "<page><longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
-          "<page><long-long-long-header/><revision beginningofpage=\"true\"></revision>\n<revision>f</revision>\n</page>\n",
+          "<page><longlongheader/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>e</revision>\n</page>\n",
+          "<page><long-long-long-header/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>f</revision>\n</page>\n",
         }), found);
   }
 
@@ -104,13 +104,13 @@ public class TestStreamWikiDumpInputFormat {
     format.configure(job);
     List<String> found = collect(format, job, 1);
     assertEquals(Arrays.asList(new String[]{
-          "<page> <revision beginningofpage=\"true\"></revision>\n<revision>1</revision>\n</page>\n",
-          "<page>     <header/> <revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
+          "<page> <revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>1</revision>\n</page>\n",
+          "<page>     <header/> <revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>first</revision>\n</page>\n",
           "<page>     <header/> <revision>first</revision><revision>second</revision>\n</page>\n",
           "<page>     <header/> <revision>second</revision><revision>third</revision>\n</page>\n",
           "<page>     <header/> <revision>third</revision><revision>n</revision>\n</page>\n",
           "<page>     <header/> <revision>n</revision><revision>n+1</revision>\n</page>\n",
-          "<page>  <longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
+          "<page>  <longlongheader/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>e</revision>\n</page>\n",
         }), found);
   }
 
@@ -149,12 +149,12 @@ public class TestStreamWikiDumpInputFormat {
     format.configure(job);
     List<String> found = collect(format, job, 1);
     assertEquals(Arrays.asList(new String[]{
-          "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
+          "<page><header/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>first</revision>\n</page>\n",
           "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
           "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
           "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
           "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
-          "<page><longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
+          "<page><longlongheader/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>e</revision>\n</page>\n",
         }), found);
   }
 
@@ -333,12 +333,12 @@ public class TestStreamWikiDumpInputFormat {
     for ( Integer n: new Integer[]{1,2,3,4,5} ) {
       List<String> found = collect(format, job, n);
       assertEquals(Arrays.asList(new String[]{
-            "<page><header/><revision beginningofpage=\"true\"></revision>\n<revision>first</revision>\n</page>\n",
+            "<page><header/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>first</revision>\n</page>\n",
             "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
             "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
             "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
             "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
-            "<page><longlongheader/><revision beginningofpage=\"true\"></revision>\n<revision>e</revision>\n</page>\n",
+            "<page><longlongheader/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>e</revision>\n</page>\n",
           }), found);
     }
   }

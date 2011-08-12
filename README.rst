@@ -58,8 +58,85 @@ Input & Output format
 =============================
 Input can be Wikipedia XML dumps either as compressed in bzip2 (this is what you can directly get from the distribution site) or uncompressed.
 
-Output is in the following format.
+The record reader embedded in this input format converts a page into a sequence of page-like elements, each of which contains two consecutive revisions. Output is given as keys with empty values. For example, Given the following input containing two pages and four revisions, ::
 
+  <page>
+    <title>ABC</title>
+    <id>123</id>
+    <revision>
+      <id>100</id>
+      ....
+    </revision>
+    <revision>
+      <id>200</id>
+      ....
+    </revision>
+    <revision>
+      <id>300</id>
+      ....
+    </revision>
+  </page>
+  <page>
+    <title>DEF</title>
+    <id>456</id>
+    <revision>
+      <id>400</id>
+      ....
+    </revision>
+  </page>
+ 
+it will produce four keys like this ::
+
+  <page>
+    <title>ABC</title>
+    <id>123</id>
+    <revision><revision beginningofpage="true"><text xml:space="preserve"></text></revision><revision>
+      <id>100</id>
+      ....
+    </revision>
+  </page>
+ 
+ ::
+
+  <page>
+    <title>ABC</title>
+    <id>123</id>
+    <revision>
+      <id>100</id>
+      ....
+    </revision>
+    <revision>
+      <id>200</id>
+      ....
+    </revision>
+  </page>
+ 
+ ::
+
+  <page>
+    <title>ABC</title>
+    <id>123</id>
+    <revision>
+      <id>200</id>
+      ....
+    </revision>
+    <revision>
+      <id>300</id>
+      ....
+    </revision>
+  </page>
+ 
+ ::
+
+  <page>
+    <title>DEF</title>
+    <id>456</id>
+    <revision><revision beginningofpage="true"><text xml:space="preserve"></text></revision><revision>
+      <id>400</id>
+      ....
+    </revision>
+  </page>
+ 
 Requirements
 ==============================
 Following softwares are required.
