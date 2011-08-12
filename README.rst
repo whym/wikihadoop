@@ -87,8 +87,7 @@ WikiHadoop's parser can be seen as a SAX parser that is tuned for Wikipedia dump
 Known problems
 ==============================
 - The default size of minimum split tends to be too small.  Try changing it to a larger value by setting ``mapreduce.input.fileinputformat.split.minsize`` to, for example, 500000000.
-- Timeout when pages are too long.  Try setting ``mapreduce.task.timeout`` longer than 6000000. Before it starts parsing the data and reporting the progress, WikiHadoop can take more than 600 minutes to preprocess XML dumps.
-- Missing revisions.
+- Timeout when pages are too long.  Try setting ``mapreduce.task.timeout`` longer than 6000000. Before it starts parsing the data and reporting the progress, WikiHadoop can take more than 6000 seconds to preprocess XML dumps.
 
 .. Local variables:
 .. mode: rst

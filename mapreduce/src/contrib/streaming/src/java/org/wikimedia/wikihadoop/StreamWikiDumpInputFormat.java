@@ -227,7 +227,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
         this.end   = split.getStart() + split.getLength();
       } else {
         this.start = sin.getAdjustedStart();
-        this.end   = sin.getAdjustedEnd();
+        this.end   = sin.getAdjustedEnd() + 1;
       }
       this.reporter = reporter;
 
@@ -426,7 +426,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       SplitCompressionInputStream cin = in.getSplitCompressionInputStream();
       if ( cin != null ) {
         start = cin.getAdjustedStart();
-        end   = cin.getAdjustedEnd();
+        end   = cin.getAdjustedEnd() + 1;
       }
       ByteMatcher matcher = new ByteMatcher(in, in);
       List<Long> ret = new ArrayList<Long>();

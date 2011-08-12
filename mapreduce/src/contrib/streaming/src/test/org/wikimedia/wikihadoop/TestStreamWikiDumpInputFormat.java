@@ -220,6 +220,20 @@ public class TestStreamWikiDumpInputFormat {
     return (int)(n*Math.random());
   }
 
+  private static int count(String str, String patt) {
+    int lastIndex = 0;
+    int count =0;
+    while(lastIndex != -1){
+      lastIndex = str.indexOf(patt,lastIndex);
+      
+       if( lastIndex != -1){
+         lastIndex += patt.length();
+         ++count;
+       }
+    }
+    return count;
+  }
+
   @Test
   public void testSplitCompressed() throws IOException {
     JobConf job = new JobConf(conf);
@@ -231,27 +245,32 @@ public class TestStreamWikiDumpInputFormat {
 
     StreamWikiDumpInputFormat.setInputPaths(job, dir);
 
-    OutputStream writer = fs.create(txtFile);
+    for ( int bsize: new int[]{1,5,9}) {
+    OutputStreamWriter writer = new OutputStreamWriter(new CBZip2OutputStream(fs.create(txtFile), bsize));
 
+    int pagenum = 0;
+    int revnum = 0;
     try {
-      StringBuffer buff = new StringBuffer
+      writer.write
         ("<page><revision>AB</revision>          \n" +
          "<revision>C</revision>          <revisio" +
          "n>DER</revision></page> <page><revision>" +
          "long-long-long-long-long-long-long-long-" +
          "long-long-long-revision. </revision></pa");
-      for ( Integer len: new Integer[]{81920, 80000, 80001} ) {
-        buff.append("ge> <page><revision>long-long-long-long-");
+      pagenum += 2;
+      revnum += 4;
+      for ( Integer len: new Integer[]{2000, 81920, 5001, 2002,1003,1004,1005} ) {
+        writer.write("ge> <page><revision>long-long-long-long-");
         for ( int i = 0; i < len; ++i ) {
-          buff.append(upperCaseRegion(String.format("long-long-long--No%5d/%5d-long-long ", i, len), rand(40), rand(40)));
-          buff.append(upperCaseRegion(String.format("long revision</revision>\n<revision>%5d", i), 0, 0));
-          buff.append(upperCaseRegion(String.format("long-long-long-long-%4d-long-long-long-", rand(1000)), rand(40), rand(40)));
+          writer.write(upperCaseRegion(String.format("long-long-long--No%5d/%5d-long-long ", i, len), rand(40), rand(40)));
+          writer.write(upperCaseRegion(String.format("long revision</revision>\n<revision>%5d", i), 0, 0));
+          writer.write(upperCaseRegion(String.format("long-long-long-long-%4d-long-long-long-", rand(1000)), rand(40), rand(40)));
         }
-        buff.append("long-long-long-revision. </revision></pa");
+        writer.write("long-long-long-revision. </revision></pa");
+        revnum += len;
       }
-      buff.append("ge>\n");
-      //System.out.print(buff);
-      writer.write(bzip2(buff.toString().getBytes("UTF-8")));
+      ++pagenum;
+      writer.write("ge>\n");
     } finally {
       writer.flush();
       writer.close();
@@ -260,7 +279,9 @@ public class TestStreamWikiDumpInputFormat {
     StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
     format.configure(job);
 
-    for ( Integer len: new Integer[]{200000, 400000, 100000, 800000} ) {
+    for ( Integer len: new Integer[]{10000, 1000, 80000} ) {
+      int bcount = 0;
+      int ecount = 0;
       long size = 0;
       for ( InputSplit is: format.getSplits(job, fs.getFileStatus(txtFile), "</page>", len) ) {
         FileSplit split = (FileSplit)is;
@@ -272,8 +293,18 @@ public class TestStreamWikiDumpInputFormat {
         System.err.println("str: " + snip(str, 200));
         assertTrue("no </page> in \"" + snip(str, 200) + "\"", str.indexOf("</page>") >= 0);
         assertTrue("no <page> in \""  + snip(str, 200) + "\"", str.indexOf("<page>") >= 0);
+        bcount += count(str, "<page>");
+        ecount += count(str, "</page>");
       }
       assertTrue("total size is too small: expected: " + fs.getFileStatus(txtFile).getLen() + ", found: " + size, fs.getFileStatus(txtFile).getLen() <= size);
+      assertTrue("number of page beginnings is too small: expected: " + pagenum + ", found: " + bcount, pagenum <= bcount);
+      assertTrue("number of page endings is too small: expected: " + pagenum + ", found: " + ecount, pagenum <= ecount);
+    }
+    for ( Integer n: new Integer[]{1,2} ) {
+      List<String> found_ = collect(format, job, n, Reporter.NULL);
+      Set<String> found = new HashSet<String>(found_);
+      assertTrue("number of revisions is too small: expected: " + revnum + ", found: " + found.size(), revnum <= found.size());
+    }
     }
   }
 
@@ -313,9 +344,12 @@ public class TestStreamWikiDumpInputFormat {
   }
 
   private static List<String> collect(FileInputFormat<Text,Text> format, JobConf job, int n) throws IOException {
+    return collect(format, job, n, getStderrReporter());
+  }
+  private static List<String> collect(FileInputFormat<Text,Text> format, JobConf job, int n, Reporter reporter) throws IOException {
     List<String> found = new ArrayList<String>();
     for (InputSplit split : format.getSplits(job, n)) {
-      RecordReader<Text,Text> reader = format.getRecordReader(split, job, getReporter(split));
+      RecordReader<Text,Text> reader = format.getRecordReader(split, job, reporter);
       Text key = reader.createKey();
       Text value = reader.createValue();
       try {
@@ -329,7 +363,7 @@ public class TestStreamWikiDumpInputFormat {
     return found;
   }
 
-  private static Reporter getReporter(final InputSplit split) {
+  private static Reporter getStderrReporter() {
     return new Reporter() {
       public void setStatus(String s) {
         System.err.println(s);
@@ -349,7 +383,7 @@ public class TestStreamWikiDumpInputFormat {
         //System.err.println(group.toString() + " " + counter + " is incremented by " + amount);
       }
       public InputSplit getInputSplit() throws UnsupportedOperationException {
-        return split;
+        throw new UnsupportedOperationException();
       }
       @Override
         public float getProgress() {
@@ -419,7 +453,7 @@ public class TestStreamWikiDumpInputFormat {
 
     for (InputSplit split : format.getSplits(job, num)) {
       System.err.println(split);
-      RecordReader reader = format.getRecordReader(split, job, verbose? getReporter(split): Reporter.NULL);
+      RecordReader reader = format.getRecordReader(split, job, verbose? getStderrReporter(): Reporter.NULL);
       try {
         while (reader.next(key, value)) {
           if (verbose)
