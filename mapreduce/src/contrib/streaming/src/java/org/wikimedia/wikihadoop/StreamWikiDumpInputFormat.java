@@ -37,6 +37,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.io.compress.*;
+import java.util.regex.*;
 
 /** A InputFormat implementation that splits a Wikimedia Dump File into page fragments, and emits them as input records.
  * The record reader embedded in this input format converts a page into a sequence of page-like elements, each of which contains two consecutive revisions.  Output is given as keys with empty values.
@@ -269,13 +270,18 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
 
     // Open the file and seek to the start of the split
     FileSystem fs = split.getPath().getFileSystem(job);
-    return new MyRecordReader(split, reporter, job, fs);
+    String patt = job.get("org.wikimedia.wikihadoop.excludePagesWith");
+    boolean prev = job.getBoolean("org.wikimedia.wikihadoop.previousRevision", true);
+    return new MyRecordReader(split, reporter, job, fs,
+                              patt != null && !"".equals(patt) ? Pattern.compile(patt): null,
+                              prev);
   }
 
   private class MyRecordReader implements RecordReader<Text,Text> {
     
     public MyRecordReader(FileSplit split, Reporter reporter,
-                          JobConf job, FileSystem fs) throws IOException {
+                          JobConf job, FileSystem fs,
+                          Pattern exclude, boolean prev) throws IOException {
       this.revisionBeginPattern = "<revision";
       this.revisionEndPattern   = "</revision>";
       this.pageHeader   = new DataOutputBuffer();
@@ -287,6 +293,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       this.bufBeforeRev = new DataOutputBuffer();
       this.split = split;
       this.fs = fs;
+      this.exclude = exclude;
+      this.recordPrevRevision = prev;
       SeekableInputStream in = SeekableInputStream.getInstance(split, fs, compressionCodecs);
       SplitCompressionInputStream sin = in.getSplitCompressionInputStream();
       if ( sin == null ) {
@@ -342,32 +350,43 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     @Override synchronized public boolean next(Text key, Text value) throws IOException {
       //LOG.info("StreamWikiDumpInputFormat: split=" + split + " start=" + this.start + " end=" + this.end + " pos=" + this.getPos());
 
+      while (true) {
         if ( this.nextPageBegin() < 0 ) {
           return false;
         }
-      
-      //System.err.println("0.2 check pos="+this.getPos() + " end="+this.end);//!
-      if (this.currentPageNum >= this.pageBytes.size() / 2  ||  this.getReadBytes() >= this.tailPageEnd()) {
-        return false;
-      }
-
-      //System.err.println("2 move to rev from: " + this.getReadBytes());//!
-      if (!readUntilMatch(this.revisionBeginPattern, this.bufBeforeRev)  ||  this.getReadBytes() >= this.tailPageEnd()) { // move to the beginning of the next revision
-        return false;
-      }
-      //System.err.println("2.1 move to rev to: " + this.getReadBytes());//!
         
-      //System.err.println("4.5 check if exceed: " + this.getReadBytes() + " " + nextPageBegin() + " " + prevPageEnd());//!
-      if ( this.getReadBytes() >= this.nextPageBegin() ) {
-        // int off = (int)(this.nextPageBegin() - this.prevPageEnd());
-        int off = findIndex(pageBeginPattern.getBytes("UTF-8"), this.bufBeforeRev);
-        if ( off >= 0 ) {
-          offsetWrite(this.pageHeader, off, this.bufBeforeRev);
-          allWrite(this.prevRevision, this.firstDummyRevision);
-          this.currentPageNum++;
-          reporter.incrCounter(WikiDumpCounters.WRITTEN_PAGES, 1);
-          //System.err.println("4.6 exceed");//!
+        //System.err.println("0.2 check pos="+this.getPos() + " end="+this.end);//!
+        if (this.currentPageNum >= this.pageBytes.size() / 2  ||  this.getReadBytes() >= this.tailPageEnd()) {
+          return false;
+        }
+
+        //System.err.println("2 move to rev from: " + this.getReadBytes());//!
+        if (!readUntilMatch(this.revisionBeginPattern, this.bufBeforeRev)  ||  this.getReadBytes() >= this.tailPageEnd()) { // move to the beginning of the next revision
+          return false;
+        }
+        //System.err.println("2.1 move to rev to: " + this.getReadBytes());//!
+        
+        //System.err.println("4.5 check if exceed: " + this.getReadBytes() + " " + nextPageBegin() + " " + prevPageEnd());//!
+        if ( this.getReadBytes() >= this.nextPageBegin() ) {
+          // int off = (int)(this.nextPageBegin() - this.prevPageEnd());
+          int off = findIndex(pageBeginPattern.getBytes("UTF-8"), this.bufBeforeRev);
+          if ( off >= 0 ) {
+            offsetWrite(this.pageHeader, off, this.bufBeforeRev);
+            allWrite(this.prevRevision, this.firstDummyRevision);
+            this.currentPageNum++;
+            if ( this.exclude != null && this.exclude.matcher(new String(this.pageHeader.getData(), "UTF-8")).find() ) {
+              reporter.incrCounter(WikiDumpCounters.SKIPPED_PAGES, 1);
+              this.seekNextRecordBoundary();
+            } else {
+              reporter.incrCounter(WikiDumpCounters.WRITTEN_PAGES, 1);
+              break;
+            }
+            //System.err.println("4.6 exceed");//!
+          } else {
+            throw new IllegalArgumentException();
+          }
         } else {
+          break;
         }
       }
       
@@ -380,18 +399,24 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       //System.err.println("4.1 read rev to: " + this.getReadBytes());//!
         
       //System.err.println("5 read rev pos " + this.getReadBytes());//!
-      byte[] record = writeInSequence(new DataOutputBuffer[]{ this.pageHeader,
-                                                              this.prevRevision,
-                                                              this.revHeader,
-                                                              this.bufInRev,
-                                                              this.pageFooter});
+      byte[] record = this.recordPrevRevision ?
+        writeInSequence(new DataOutputBuffer[]{ this.pageHeader,
+                                                this.prevRevision,
+                                                this.revHeader,
+                                                this.bufInRev,
+                                                this.pageFooter}):
+        writeInSequence(new DataOutputBuffer[]{ this.pageHeader,
+                                                this.bufInRev,
+                                                this.pageFooter});
       key.set(record);
       //System.out.print(key.toString());//!
       value.set("");
       this.reporter.setStatus("StreamWikiDumpInputFormat: write new record pos=" + this.getPos() + " bytes=" + this.getReadBytes() + " next=" + this.nextPageBegin() + " prev=" + this.prevPageEnd());
       reporter.incrCounter(WikiDumpCounters.WRITTEN_REVISIONS, 1);
       
-      allWrite(this.prevRevision, this.bufInRev);
+      if ( this.recordPrevRevision ) {
+        allWrite(this.prevRevision, this.bufInRev);
+      }
       
       return true;
     }
@@ -418,7 +443,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       if ( (this.currentPageNum + 1) * 2 < this.pageBytes.size() ) {
         return this.pageBytes.get((this.currentPageNum + 1) * 2);
       } else {
-        throw new IllegalArgumentException();
+        return -1;
       }
     }
     private long prevPageEnd() {
@@ -436,6 +461,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     }  
   
     private int currentPageNum;
+    private final Pattern exclude;
+    private final boolean recordPrevRevision;
     private final long start;
     private final long end;
     private final List<Long> pageBytes;
@@ -559,7 +586,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
   }
 
   private static enum WikiDumpCounters {
-    FOUND_PAGES, WRITTEN_REVISIONS, WRITTEN_PAGES
+    FOUND_PAGES, WRITTEN_REVISIONS, WRITTEN_PAGES, SKIPPED_PAGES
   }
 
   private static final String pageBeginPattern = "<page>";

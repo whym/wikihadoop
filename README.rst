@@ -151,6 +151,21 @@ To process an English Wikipedia dump with the default mapper: ::
 
    hadoop jar hadoop-$\{version\}-streaming.jar -input /enwiki-20110722-pages-meta-history27.xml.bz2 -output /usr/hadoop/out -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat
 
+Configuration variables
+==============================
+Following parameters can be configured as similar as other parameters described in `Hadoop Streaming`_.
+
+``org.wikimedia.wikihadoop.excludePagesWith=REGEX``
+        Used to exclude pages with the headers that match to this.
+        For example, to exclude all namespaces except for the main article space, use ``-D org.wikimedia.wikihadoop.excludePagesWith="<title>(Media|Special|Talk|User|User talk|Wikipedia|Wikipedia talk|File|File talk|MediaWiki|MediaWiki talk|Template|Template talk|Help|Help talk|Category|Category talk|Portal|Portal talk|Book|Book talk):"``.
+        When unspecified, WikiHadoop sends all pages to mappers.
+        
+        Ignoring pages irrelevant to the task is a good idea, if you want to speed up the process.
+
+``org.wikimedia.wikihadoop.previousRevision=true or false``
+        When set ``false``, WikiHadoop writes one revision in one page-like element without attaching the previous revision.
+        The default behaviour is to write two consecutive revisions in one page-like element, 
+
 Mechanism
 ==============================
 

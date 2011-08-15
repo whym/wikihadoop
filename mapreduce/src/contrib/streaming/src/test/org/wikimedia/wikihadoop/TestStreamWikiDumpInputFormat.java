@@ -37,6 +37,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.io.compress.*;
 import org.apache.hadoop.io.compress.bzip2.*;
+import java.util.regex.*;
 
 import org.junit.Test;
 import static org.junit.Assert.*;
@@ -46,7 +47,7 @@ public class TestStreamWikiDumpInputFormat {
   private static Configuration conf = new Configuration();
 
   @Test
-  public void testFormatWithOneSplitUncompressed() throws IOException {
+  public void testFormatWithNoPreviousRevision() throws IOException {
     JobConf job = new JobConf(conf);
     FileSystem fs = FileSystem.getLocal(conf);
     Path dir = new Path(System.getProperty("test.build.data", ".") + "/mapred");
@@ -67,17 +68,51 @@ public class TestStreamWikiDumpInputFormat {
     }
 
     StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
+    job.setBoolean("org.wikimedia.wikihadoop.previousRevision", false);
     format.configure(job);
+
     List<String> found = collect(format, job, 1);
 
     assertEquals(Arrays.asList(new String[]{
-          "<page><header/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>first</revision>\n</page>\n",
-          "<page><header/><revision>first</revision><revision>second</revision>\n</page>\n",
-          "<page><header/><revision>second</revision><revision>third</revision>\n</page>\n",
-          "<page><header/><revision>third</revision><revision>n</revision>\n</page>\n",
-          "<page><header/><revision>n</revision><revision>n+1</revision>\n</page>\n",
+          "<page><header/><revision>first</revision>\n</page>\n",
+          "<page><header/><revision>second</revision>\n</page>\n",
+          "<page><header/><revision>third</revision>\n</page>\n",
+          "<page><header/><revision>n</revision>\n</page>\n",
+          "<page><header/><revision>n+1</revision>\n</page>\n",
+          "<page><longlongheader/><revision>e</revision>\n</page>\n",
+          "<page><long-long-long-header/><revision>f</revision>\n</page>\n",
+        }), found);
+  }
+
+  @Test
+  public void testFormatIgnorePattern() throws IOException {
+    JobConf job = new JobConf(conf);
+    FileSystem fs = FileSystem.getLocal(conf);
+    Path dir = new Path(System.getProperty("test.build.data", ".") + "/mapred");
+    Path txtFile = new Path(dir, "auto.txt");
+
+    fs.delete(dir, true);
+
+    StreamWikiDumpInputFormat.setInputPaths(job, dir);
+
+    Writer txtWriter = new OutputStreamWriter(fs.create(txtFile));
+    try {
+      txtWriter.write("<tree><page><header/><revision>first</revision><revision>second</revision><revision>third</revision><revision>n</revision><revision>n+1</revision></page>\n"
+                      + "<page><longlongheader/><revision>e</revision></page>\n"
+                      + "<page><long-long-long-header/><revision>f</revision></page></tree>\n");
+    } finally {
+      txtWriter.flush();
+      txtWriter.close();
+    }
+
+    StreamWikiDumpInputFormat format = new StreamWikiDumpInputFormat();
+    job.set("org.wikimedia.wikihadoop.excludePagesWith", "<(header|long-long-long-header)/>");
+    format.configure(job);
+
+    List<String> found = collect(format, job, 1);
+
+    assertEquals(Arrays.asList(new String[]{
           "<page><longlongheader/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>e</revision>\n</page>\n",
-          "<page><long-long-long-header/><revision beginningofpage=\"true\"><text xml:space=\"preserve\"></text></revision>\n<revision>f</revision>\n</page>\n",
         }), found);
   }
 
