@@ -41,7 +41,7 @@ How to use
 ==============================
 
 1. Download WikiHadoop_ and extract the source tree.
-   Use `git clone https://whym@github.com/whym/wikihadoop.git` or get the tarball from the download page.
+   Use `git clone https://whym@github.com/whym/wikihadoop.git` or get the tarball from the `download page`_.
    After extracting the source tree, confirm there is a directory called ``mapreduce``.
 
 2. Download `Hadoop Common`_ and extract the source tree.  Confirm there is a directory called ``mapreduce``.
