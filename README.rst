@@ -35,24 +35,39 @@ __ https://github.com/whym/wikihadoop/wiki
 .. _Apache Ant: http://ant.apache.org
 .. _WikiHadoop: http://github.com/whym/wikihadoop
 
-.. [#] For example, one dump file such as pages-meta-history1.xml.bz2, pages-meta-history6.xml.bz2, etc, provided at http://dumps.wikimedia.org/enwiki/20110803/ is more than 30 gigabytes in compressed forms, and more than 700 gigabytes when decompressed.
+.. [#] For example, one dump file such as pages-meta-history1.xml.bz2,
+       pages-meta-history6.xml.bz2, etc, provided at
+       http://dumps.wikimedia.org/enwiki/20110803/ is more than 30
+       gigabytes in compressed forms, and more than 700 gigabytes
+       when decompressed.
 
 How to use
 ==============================
 
 1. Download WikiHadoop_ and extract the source tree.
-   Use `git clone https://whym@github.com/whym/wikihadoop.git` or get the tarball from the `download page`_.
-   After extracting the source tree, confirm there is a directory called ``mapreduce``.
+   
+   We provide both our git repository and a tarball package.
+   
+   - Use ``git clone https://whym@github.com/whym/wikihadoop.git`` to
+     access to the latest source,
+   - or download the tarball from the `download page`_ if you want to use
+     the default mapper for creating diffs.
+   
+   After extracting the source tree, confirm there is a directory
+   called ``mapreduce``.
 
-2. Download `Hadoop Common`_ and extract the source tree.  Confirm there is a directory called ``mapreduce``.
+2. Download `Hadoop Common`_ and extract the source tree.  Confirm
+   there is a directory called ``mapreduce``.
 
 3. Move to the top directory of the source tree of your copy of Hadoop Common.
 
-4. Merge the ``mapreduce`` directory of your copy of WikiHadoop into that of Hadoop Common. ::
+4. Merge the ``mapreduce`` directory of your copy of WikiHadoop into
+   that of Hadoop Common. ::
     
       rsync -r ../wikihadoop/mapreduce/ mapreduce/      
 
-5. Move to the directory called ``mapreduce/src/contrib/streaming`` under the source tree of Hadoop Common. ::
+5. Move to the directory called ``mapreduce/src/contrib/streaming``
+   under the source tree of Hadoop Common. ::
     
       cd mapreduce/src/contrib/streaming
 
@@ -60,9 +75,12 @@ How to use
     
       ant jar
 
-   If it does not compile, try using the branch of Hadoop 0.21. Run ``git checkout branch-0.21`` and return to 3.
+   If it does not compile, try using the branch of Hadoop 0.21. Run
+   ``git checkout branch-0.21`` and return to 3.
 
-7. Find the jar file at ``mapreduce/build/contrib/streaming/hadoop-${version}-streaming.jar`` under the Hadoop common source tree.
+7. Find the jar file at
+   ``mapreduce/build/contrib/streaming/hadoop-${version}-streaming.jar``
+   under the Hadoop common source tree.
 
 8. Use it as ``hadoop-streaming.jar`` in the manner explained at
    `Hadoop Streaming`_.  Specify WikiHadoop as the input format with an
@@ -171,7 +189,7 @@ it will produce four keys formatted in page-like elements as follows ::
     </revision>
   </page>
 
-This result will provide a mapper with all information about the revision including the title and page ID.  We recommend to use our differ_ to get diffs.
+Notice that before This result will provide a mapper with all information about the revision including the title and page ID.  We recommend to use our differ_ to get diffs.
 
 .. _differ: http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/
 
@@ -204,6 +222,22 @@ Following parameters can be configured as similarly as other parameters describe
         When set ``false``, WikiHadoop writes one revision in one page-like element without attaching the previous revision.
         The default behaviour is to write two consecutive revisions in one page-like element, 
 
+``mapreduce.input.fileinputformat.split.minsize=BYTES``
+        This variables specified the minimum size of a split sent to
+        input readers.
+        
+        The default size tends to be too small.  Try changing it to a
+        larger value by setting.  The optimal value seems to be around
+        (size of the input dump file) / (number of processors) / 5.
+        For example, it will be 500000000 for English Wikipedia dumps
+        when processing with 12 processors.
+
+``mapreduce.task.timeout=MSECS``
+        Timeout may happen when pages are too long.  Try setting
+        longer than 6000000. Before it starts
+        parsing the data and reporting the progress, WikiHadoop can take
+        more than 6000 seconds to preprocess XML dumps.
+
 Mechanism
 ==============================
 
@@ -229,20 +263,9 @@ Known problems
 - Hadoop map tasks with ``StreamWikiDumpInputFormat`` may take a long
   time to finish preprocessing before starting reporting the progress.
 - Some revision pairs may be emitted twice when bzip2 input is
-  used. (Issue #1)
-- The default size of minimum split tends to be too small.Try changing
-  it to a larger value by setting
-  ``mapreduce.input.fileinputformat.split.minsize``.  The optimal
-  value seems to be around (size of the input dump file) / (number of
-  processors) / 5.  For example, it will be 500000000 for English
-  Wikipedia dumps when processing with 12 processors.
-- Timeout may happen when pages are too long.  Try setting
-  ``mapreduce.task.timeout`` longer than 6000000. Before it starts
-  parsing the data and reporting the progress, WikiHadoop can take
-  more than 6000 seconds to preprocess XML dumps.
-- Although very small in number, some revisions can be missing in the
-  results.  We have seen 184 out of 17,971,932 revisions are
-  missing. (Issue #2)
+  used. (`Issue #1`_)
+
+.. _Issue #1: https://github.com/whym/wikihadoop/issues/1
 
 .. Local variables:
 .. mode: rst
