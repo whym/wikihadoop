@@ -121,6 +121,9 @@ import java.util.regex.*;
  */
 public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
 
+  private static final String KEY_EXCLUDE_PAGE_PATTERN = "org.wikimedia.wikihadoop.excludePagesWith";
+  private static final String KEY_PREVIOUS_REVISION    = "org.wikimedia.wikihadoop.previousRevision";
+  private static final String KEY_SKIP_FACTOR          = "org.wikimedia.wikihadoop.skipFactor";
   private CompressionCodecFactory compressionCodecs = null;
    
   public void configure(JobConf conf) {
@@ -202,7 +205,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       FileSplit split = null;
       long lastSplitSize = splitSize;
       Set<Long> processedPageEnds = new HashSet<Long>();
-      double factor = 2.0;
+      float factor = job.getFloat(KEY_SKIP_FACTOR, 1.2F);
       while (((double) bytesRemaining)/lastSplitSize > factor  &&  bytesRemaining > 0) {
         if (matcher == null) {
           long st = Math.min(start + lastSplitSize, length - 1);
@@ -270,8 +273,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
 
     // Open the file and seek to the start of the split
     FileSystem fs = split.getPath().getFileSystem(job);
-    String patt = job.get("org.wikimedia.wikihadoop.excludePagesWith");
-    boolean prev = job.getBoolean("org.wikimedia.wikihadoop.previousRevision", true);
+    String patt = job.get(KEY_EXCLUDE_PAGE_PATTERN);
+    boolean prev = job.getBoolean(KEY_PREVIOUS_REVISION, true);
     return new MyRecordReader(split, reporter, job, fs,
                               patt != null && !"".equals(patt) ? Pattern.compile(patt): null,
                               prev);
