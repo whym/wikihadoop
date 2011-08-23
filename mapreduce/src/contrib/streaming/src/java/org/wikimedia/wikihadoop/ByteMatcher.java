@@ -31,8 +31,8 @@ public class ByteMatcher {
     this.in = in;
     this.pos = pos;
     this.bytes = 0;
-    this.lastPos = pos.getPos();
-    this.currentPos = pos.getPos();
+    this.lastPos = -1;
+    this.currentPos = -1;
   }
   public ByteMatcher(SeekableInputStream is) throws IOException {
     this(is, is);
@@ -57,7 +57,7 @@ public class ByteMatcher {
       int b = this.in.read();
       // end of file:
       if (b == -1) {
-        //System.err.println("eof 1");
+        System.err.println("eof 1");
         return false;
       }
       ++this.bytes;    //! TODO: count up later in batch
@@ -79,7 +79,7 @@ public class ByteMatcher {
       }
       // see if we've passed the stop point:
       if (i == 0 && this.pos.getPos() >= end) {
-        System.err.println("eof 2");
+        System.err.println("eof 2: end=" + end);
         return false;
       }
     }
