@@ -43,6 +43,24 @@ __ https://github.com/whym/wikihadoop/wiki
 
 How to use
 ==============================
+Essentially WikiHadoop is an input format for Hadoop Streaming.  Once you have ``StreamWikiDumpInputFormat`` in the class path, you can give it into the ``-inputformat`` option.
+
+To obtain the input format class, follow one of the following procedures:
+
+1. Download the jar file, use it instead of ``hadoop-streaming.jar``, and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format. (recommended)
+2. Download the jar file, put it in the class path, and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format with the standard ``hadoop-streaming.jar``.
+3. Build the class and/or the jar by yourself.  See `How to build`_.
+
+.. _StreamWikiDumpInputFormat: https://github.com/whym/wikihadoop/blob/master/mapreduce/src/contrib/streaming/src/java/org/wikimedia/wikihadoop/StreamWikiDumpInputFormat.java
+
+How to build
+==============================
+
+**Note**: If you find it difficult to compile, please the compiled version of WikiHadoop.  We found that the build procedure described below works for a quite limited versions of Hadoop available ad the `Download page`_. See the [#]_ for more details.
+
+.. _Download page: https://github.com/whym/wikihadoop/downloads
+__ https://www.mappian.com/blog/hadoop/using-hadoop-to-analyze-the-full-wikipedia-dump-files-using-wikihadoop/#comment-43
+
 
 1. Download WikiHadoop_ and extract the source tree.
    
@@ -58,6 +76,11 @@ How to use
 
 2. Download `Hadoop Common`_ and extract the source tree.  Confirm
    there is a directory called ``mapreduce``.
+
+   The following versions of Hadoop Common are confirmed: 
+   
+   - https://svn.apache.org/repos/asf/hadoop/common/branches/branch-0.21/ (revision 1135003)
+   - https://github.com/apache/hadoop-common/downloads (0.21.0)
 
 3. Move to the top directory of the source tree of your copy of Hadoop Common.
 
@@ -252,11 +275,12 @@ splits.
 
 Parsing
 ----------------
+
 WikiHadoop's parser can be seen as a SAX parser that is tuned for
-Wikipedia dump XMLs.  However, by limiting its flexibility, it is
-supposed to achieve higher efficiency.  Instead of extracting all
-occurrence of elements and attributes, it only looks for beginnings
-and endings of ``page`` elements and ``revision`` elements.
+Wikipedia dump XMLs.  By limiting its flexibility, it is supposed to
+achieve higher efficiency.  Instead of extracting all occurrence of
+elements and attributes, it only looks for beginnings and endings of
+``page`` elements and ``revision`` elements.
 
 Known problems
 ==============================
