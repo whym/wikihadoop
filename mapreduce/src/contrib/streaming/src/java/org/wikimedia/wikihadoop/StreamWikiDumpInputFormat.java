@@ -506,15 +506,6 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     return dest;
   }
   
-  private static void copy(InputStream in, OutputStream out) throws IOException {
-    byte[] buffer = new byte[1024 * 1024];
-    int len = 0;
-    while ( (len = in.read(buffer)) > 0 ) {
-      out.write(buffer, 0, len);
-    }
-    out.flush();
-  }
-
   private static DataOutputBuffer getBuffer(byte[] bytes) throws IOException {
     DataOutputBuffer ret = new DataOutputBuffer(bytes.length);
     ret.write(bytes);
