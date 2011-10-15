@@ -56,11 +56,10 @@ To obtain the input format class, follow one of the following procedures:
 How to build
 ==============================
 
-**Note**: If you find it difficult to compile, please the compiled version of WikiHadoop.  We found that the build procedure described below works for a quite limited versions of Hadoop available ad the `Download page`_. See the [#]_ for more details.
+**Note**: If you find it difficult to compile, please the compiled version of WikiHadoop.  We found that the build procedure described below works for a quite limited versions of Hadoop available ad the `Download page`_. See `comments at the blog post`__ for more details.
 
 .. _Download page: https://github.com/whym/wikihadoop/downloads
 __ https://www.mappian.com/blog/hadoop/using-hadoop-to-analyze-the-full-wikipedia-dump-files-using-wikihadoop/#comment-43
-
 
 1. Download WikiHadoop_ and extract the source tree.
    
