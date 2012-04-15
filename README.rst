@@ -45,68 +45,37 @@ How to use
 ==============================
 Essentially WikiHadoop is an input format for Hadoop Streaming.  Once you have ``StreamWikiDumpInputFormat`` in the class path, you can give it into the ``-inputformat`` option.
 
-To obtain the input format class, follow one of the following procedures:
+To get the input format class working, follow one of the following procedures:
 
-1. Download the jar file, use it instead of ``hadoop-streaming.jar``, and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format. (recommended)
-2. Download the jar file, put it in the class path, and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format with the standard ``hadoop-streaming.jar``.
-3. Build the class and/or the jar by yourself.  See `How to build`_.
+1. Download the jar file, put it in the class path, and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format with the standard ``hadoop-streaming.jar``.
+2. Build the class and/or the jar by yourself (see `How to build`_), and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format with the standard ``hadoop-streaming.jar``.
 
 .. _StreamWikiDumpInputFormat: https://github.com/whym/wikihadoop/blob/master/mapreduce/src/contrib/streaming/src/java/org/wikimedia/wikihadoop/StreamWikiDumpInputFormat.java
 
 How to build
 ==============================
 
-**Note**: If you find it difficult to compile, please the compiled version of WikiHadoop.  We found that the build procedure described below works for a quite limited versions of Hadoop available ad the `Download page`_. See `comments at the blog post`__ for more details.
+1. Install Apache Hadoop.  Version 0.22 is the one we tested.
 
-.. _Download page: https://github.com/whym/wikihadoop/downloads
-__ https://www.mappian.com/blog/hadoop/using-hadoop-to-analyze-the-full-wikipedia-dump-files-using-wikihadoop/#comment-43
-
-1. Download WikiHadoop_ and extract the source tree.
+2. Download WikiHadoop_ and extract the source tree.
    
    We provide both our git repository and a tarball package.
    
    - Use ``git clone https://whym@github.com/whym/wikihadoop.git`` to
      access to the latest source,
-   - or download the tarball from the `download page`_ if you want to use
+   - or download the latest tarball from the `download page`_ if you want to use
      the default mapper for creating diffs.
-   
-   After extracting the source tree, confirm there is a directory
-   called ``mapreduce``.
 
-2. Download `Hadoop Common`_ and extract the source tree.  Confirm
-   there is a directory called ``mapreduce``.
-
-   The following versions of Hadoop Common are confirmed: 
-   
-   - https://svn.apache.org/repos/asf/hadoop/common/branches/branch-0.21/ (revision 1135003)
-   - https://github.com/apache/hadoop-common/downloads (0.21.0)
-
-3. Move to the top directory of the source tree of your copy of Hadoop Common.
-
-4. Merge the ``mapreduce`` directory of your copy of WikiHadoop into
-   that of Hadoop Common. ::
+3. Run Maven to build a jar file. [#]_ ::
     
-      rsync -r ../wikihadoop/mapreduce/ mapreduce/      
+      mvn package
 
-5. Move to the directory called ``mapreduce/src/contrib/streaming``
-   under the source tree of Hadoop Common. ::
-    
-      cd mapreduce/src/contrib/streaming
+4. Find the resulting jar file at ``target/wikihadoop-*.jar``.
 
-6. Run Ant to build a jar file. [#]_ ::
-    
-      ant jar
+5. Find the jar file of Hadoop Streaming ``hadoop-streaming-*.jar`` in your copy of Hadoop.  It is probably found at ``contrib/streaming/hadoop-streaming-1.0.2.jar``.
 
-   If it does not compile, try using the branch of Hadoop 0.21. Run
-   ``git checkout branch-0.21`` and return to 3.
-
-7. Find the jar file at
-   ``mapreduce/build/contrib/streaming/hadoop-${version}-streaming.jar``
-   under the Hadoop common source tree.
-
-8. Use it as ``hadoop-streaming.jar`` in the manner explained at
-   `Hadoop Streaming`_.  Specify WikiHadoop as the input format with an
-   option ``-inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat``.
+8. Use ``hadoop-streaming-*.jar`` in the manner explained at
+   `Hadoop Streaming`_.  Put ``target/wikihadoop-*.jar`` to your class path and specify WikiHadoop as the input format with an option ``-inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat``.
    
    We recommend to use our differ_ as the mapper when creating text
    diffs between consecutive revisions.  The differ
@@ -115,8 +84,6 @@ __ https://www.mappian.com/blog/hadoop/using-hadoop-to-analyze-the-full-wikipedi
    checkout
    http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs``.
    See its `Readme file`__ for more details and other requirements.
-
-.. [#] You can run tests here.  To run tests, run ``ant compile-test``, add ``:../../../build/classes:../../../build/classes/:../../../build/contrib/streaming/classes:../../../build/contrib/streaming/test:../../../build/ivy/lib/Hadoop-Common/common/guava*.jar`` to the ``CLASSPATH`` environmental variable and run ``java org.junit.runner.JUnitCore org.wikimedia.wikihadoop.TestStreamWikiDumpInputFormat``
 
 .. _download page: https://github.com/whym/wikihadoop/downloads
 __ http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/README.txt

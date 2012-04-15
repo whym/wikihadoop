@@ -420,10 +420,6 @@ public class TestStreamWikiDumpInputFormat {
       public InputSplit getInputSplit() throws UnsupportedOperationException {
         throw new UnsupportedOperationException();
       }
-      @Override
-        public float getProgress() {
-        return 0;
-      }
     };
   }
 
