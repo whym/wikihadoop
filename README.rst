@@ -66,7 +66,7 @@ How to build
    - or download the latest tarball from the `download page`_ if you want to use
      the default mapper for creating diffs.
 
-3. Run Maven to build a jar file. [#]_ ::
+3. Add the repository URL ``https://repository.apache.org/content/groups/public/`` to ~/.m2/settings.xml [#]_. Run Maven to build a jar file. ::
     
       mvn package
 
@@ -87,6 +87,33 @@ How to build
 
 .. _download page: https://github.com/whym/wikihadoop/downloads
 __ http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/README.txt
+.. [#] You will need to have setting.xml like this:
+       ::
+       
+        <settings>
+          <profiles>
+              <profile>
+                <id>my-profile</id>
+                <activation>
+                  <activeByDefault>true</activeByDefault>
+                </activation>
+                <repositories>
+                  <!-- after other <repository> elements  -->
+                  <repository>
+                    <id>apache-public</id>
+                    <url>https://repository.apache.org/content/groups/public/</url>
+                    <snapshots>
+                      <enabled>true</enabled>
+                    </snapshots>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                  </repository>
+                </repositories>
+              </profile>
+            </profiles>
+        </settings>
+
 
 Input & Output format
 =============================
