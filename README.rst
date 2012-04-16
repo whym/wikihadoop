@@ -7,8 +7,8 @@ Stream-based InputFormat for processing the compressed XML dumps of Wikipedia wi
 --------------------------------------------------------------------------------------------
 
  :Homepage: http://github.com/whym/wikihadoop
- :Date: 2011-08-15
- :Version: 0.1
+ :Date: 2012-04-16
+ :Version: 0.2
 
 Overview
 ==============================
@@ -29,10 +29,9 @@ language.
 See the `wiki page`__ for a more detailed introduction and tutorial.
 
 __ https://github.com/whym/wikihadoop/wiki
-.. _Hadoop Common: http://github.com/apache/hadoop-common
 .. _Hadoop Streaming: http://hadoop.apache.org/common/docs/current/streaming.html
 .. _Apache Hadoop: http://hadoop.apache.org
-.. _Apache Ant: http://ant.apache.org
+.. _Apache Maven: http://maven.apache.org
 .. _WikiHadoop: http://github.com/whym/wikihadoop
 
 .. [#] For example, one dump file such as pages-meta-history1.xml.bz2,
@@ -43,19 +42,43 @@ __ https://github.com/whym/wikihadoop/wiki
 
 How to use
 ==============================
-Essentially WikiHadoop is an input format for Hadoop Streaming.  Once you have ``StreamWikiDumpInputFormat`` in the class path, you can give it into the ``-inputformat`` option.
+Essentially WikiHadoop is an input format for ``Hadoop Streaming``.  Once you have ``StreamWikiDumpInputFormat`` in the class path, you can give it into the ``-inputformat`` option.
 
-To get the input format class working, follow one of the following procedures:
+To get the input format class working with Hadoop Streaming, proceed with the following procedures:
 
-1. Download the jar file, put it in the class path, and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format with the standard ``hadoop-streaming.jar``.
-2. Build the class and/or the jar by yourself (see `How to build`_), and use ``org.wikimedia.wikihadoop.StreamWikiDumpInputFormat`` as the input format with the standard ``hadoop-streaming.jar``.
+1. Install `Apache Hadoop`_.  Version 0.21 and 0.22 is the one we tested.
 
+   - By default it builds with 0.21.  For Hadoop 0.22, you will have to edit the relevant dependency entry in ``pom.xml``.
+
+2. Download our jar file.  Alternatively, you can build the class and/or the jar by yourself (see `How to build`_).
+
+   - From our `download page`_ you can download the latest jar file or
+     the tarball containing the default mapper for creating diffs.
+
+3. Find the jar file of Hadoop Streaming ``hadoop-streaming.jar`` in your copy of Hadoop.  It is probably found at ``mapred/contrib/streaming/hadoop-0.21.0-streaming.jar``.
+
+4. Run a `Hadoop Streaming`_ command with the jar file and our input format specified.
+
+   -  A command will look like this: ::
+      
+       hadoop jar hadoop-streaming.jar -libjars wikihadoop.jar -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat
+     
+      See `Sample command line usage`_, `Configuration variables`_ and the official documentation of `Hadoop Streaming`_ for more details.
+
+   We recommend to use our differ_ as the mapper when creating text
+   diffs between consecutive revisions.  The differ
+   ``revision_differ.py`` is included in the tarball under ``diffs``, or
+   can be downloaded from the MediaWiki SVN repository by ``svn
+   checkout
+   http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs``.
+   See its `Differ's readme file`_ for more details and other requirements.
+
+.. _Differ's readme file: http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/README.txt
 .. _StreamWikiDumpInputFormat: https://github.com/whym/wikihadoop/blob/master/mapreduce/src/contrib/streaming/src/java/org/wikimedia/wikihadoop/StreamWikiDumpInputFormat.java
+.. _download page: https://github.com/whym/wikihadoop/downloads
 
 How to build
 ==============================
-
-1. Install Apache Hadoop.  Version 0.22 is the one we tested.
 
 2. Download WikiHadoop_ and extract the source tree.
    
@@ -63,30 +86,13 @@ How to build
    
    - Use ``git clone https://whym@github.com/whym/wikihadoop.git`` to
      access to the latest source,
-   - or download the latest tarball from the `download page`_ if you want to use
-     the default mapper for creating diffs.
 
 3. Add the repository URL ``https://repository.apache.org/content/groups/public/`` to ~/.m2/settings.xml [#]_. Run Maven to build a jar file. ::
     
       mvn package
 
-4. Find the resulting jar file at ``target/wikihadoop-*.jar``.
+4. Find the resulting jar file at ``target/wikihadoop-0.2.jar``.
 
-5. Find the jar file of Hadoop Streaming ``hadoop-streaming-*.jar`` in your copy of Hadoop.  It is probably found at ``contrib/streaming/hadoop-streaming-1.0.2.jar``.
-
-8. Use ``hadoop-streaming-*.jar`` in the manner explained at
-   `Hadoop Streaming`_.  Put ``target/wikihadoop-*.jar`` to your class path and specify WikiHadoop as the input format with an option ``-inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat``.
-   
-   We recommend to use our differ_ as the mapper when creating text
-   diffs between consecutive revisions.  The differ
-   ``revision_differ.py`` is included in the tarball under ``diffs``, or
-   can be downloaded from the MediaWiki SVN repository by ``svn
-   checkout
-   http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs``.
-   See its `Readme file`__ for more details and other requirements.
-
-.. _download page: https://github.com/whym/wikihadoop/downloads
-__ http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/README.txt
 .. [#] You will need to have setting.xml like this:
        ::
        
@@ -214,14 +220,14 @@ Requirements
 Following softwares are required.
 
 - `Apache Hadoop`_ 0.21 (it possibly works also with 0.22 or higher)
-- `Apache Ant`_
+- `Apache Maven`_
 
 Sample command line usage
 ==============================
 
-To process an English Wikipedia dump with Hadoop's default mapper: ::
-
-   hadoop jar hadoop-$\{version\}-streaming.jar -input /enwiki-20110722-pages-meta-history27.xml.bz2 -output /usr/hadoop/out -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat
+- To process an English Wikipedia dump with Hadoop's default mapper: ::
+  
+    hadoop jar hadoop-streaming.jar -libjars wikihadoop.jar -D mapreduce.input.fileinputformat.split.minsize=300000000 -D mapreduce.task.timeout=6000000 -input /enwiki-20110722-pages-meta-history27.xml.bz2 -output /usr/hadoop/out -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat
 
 Configuration variables
 ==============================
@@ -235,8 +241,8 @@ Following parameters can be configured as similarly as other parameters describe
         Ignoring pages irrelevant to the task is a good idea, if you want to speed up the process.
 
 ``org.wikimedia.wikihadoop.previousRevision=true or false``
-        When set ``false``, WikiHadoop writes one revision in one page-like element without attaching the previous revision.
-        The default behaviour is to write two consecutive revisions in one page-like element, 
+        When set ``false``, WikiHadoop writes only one revision in one page-like element without attaching the previous revision.
+        The default behaviour (``true``) is to write two consecutive revisions in one page-like element, 
 
 ``mapreduce.input.fileinputformat.split.minsize=BYTES``
         This variables specified the minimum size of a split sent to
