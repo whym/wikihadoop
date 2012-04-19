@@ -149,18 +149,20 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     List<InputSplit> splits = new ArrayList<InputSplit>();
     FileStatus[] files = listStatus(job);
     // Save the number of input files for metrics/loadgen
-    job.setLong(NUM_INPUT_FILES, files.length);
+    //job.setLong(NUM_INPUT_FILES, files.length);
+    job.setLong("mapreduce.input.fileinputformat.numinputfiles", files.length);
     long totalSize = 0;                           // compute total size
     for (FileStatus file: files) {                // check we have valid files
-      if (file.isDirectory()) {
+      if (file.isDir()) {
         throw new IOException("Not a file: "+ file.getPath());
       }
       totalSize += file.getLen();
     }
-    long minSize = job.getLong(org.apache.hadoop.mapreduce.lib.input.FileInputFormat.SPLIT_MINSIZE, 1);
+    //long minSize = job.getLong(org.apache.hadoop.mapreduce.lib.input.FileInputFormat.SPLIT_MINSIZE, 1);
+    long minSize = job.getLong("mapreduce.input.fileinputformat.split.minsize", 1);
     long goalSize = totalSize / (numSplits == 0 ? 1 : numSplits);
     for (FileStatus file: files) {
-      if (file.isDirectory()) {
+      if (file.isDir()) {
         throw new IOException("Not a file: "+ file.getPath());
       }
       long blockSize = file.getBlockSize();
@@ -176,8 +178,11 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
 
 
   private FileSplit makeSplit(Path path, long start, long size, NetworkTopology clusterMap, BlockLocation[] blkLocations) throws IOException {
-    return makeSplit(path, start, size,
-                     getSplitHosts(blkLocations, start, size, clusterMap));
+     //return makeSplit(path, start, size,
+     //                getSplitHosts(blkLocations, start, size, clusterMap));
+     return new FileSplit(path, start, size,
+                          getSplitHosts(blkLocations, start, size, clusterMap));
+  
   }
 
   public List<InputSplit> getSplits(JobConf job, FileStatus file, String pattern, long splitSize) throws IOException {
@@ -257,8 +262,10 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       
       if (bytesRemaining > 0 && !processedPageEnds.contains(length)) {
         System.err.println(pageEndPattern + " remaining: pos=" + (length-bytesRemaining) + " end=" + length);
-        splits.add(makeSplit(path, length-bytesRemaining, bytesRemaining, 
-                             blkLocations[blkLocations.length-1].getHosts()));
+        //splits.add(makeSplit(path, length-bytesRemaining, bytesRemaining, 
+        //                     blkLocations[blkLocations.length-1].getHosts()));
+        splits.add(new FileSplit(path, length-bytesRemaining, bytesRemaining, 
+                blkLocations[blkLocations.length-1].getHosts()));
       }
       if ( in != null )
         in.close();
@@ -266,7 +273,9 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       splits.add(makeSplit(path, 0, length, clusterMap, blkLocations));
     } else { 
       //Create empty hosts array for zero length files
-      splits.add(makeSplit(path, 0, length, new String[0]));
+      //splits.add(makeSplit(path, 0, length, new String[0]));
+      splits.add(new FileSplit(path, 0, length, new String[0]));
+
     }
     return splits;
   }
@@ -281,6 +290,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     // Open the file and seek to the start of the split
     FileSystem fs = split.getPath().getFileSystem(job);
     String patt = job.get(KEY_EXCLUDE_PAGE_PATTERN);
+    
+    
     boolean prev = job.getBoolean(KEY_PREVIOUS_REVISION, true);
     return new MyRecordReader(split, reporter, job, fs,
                               patt != null && !"".equals(patt) ? Pattern.compile(patt): null,
@@ -292,6 +303,7 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
     public MyRecordReader(FileSplit split, Reporter reporter,
                           JobConf job, FileSystem fs,
                           Pattern exclude, boolean prev) throws IOException {
+
       this.revisionBeginPattern = "<revision";
       this.revisionEndPattern   = "</revision>";
       this.pageHeader   = new DataOutputBuffer();
@@ -325,6 +337,8 @@ public class StreamWikiDumpInputFormat extends KeyValueTextInputFormat {
       this.seekNextRecordBoundary();
       this.reporter.incrCounter(WikiDumpCounters.WRITTEN_REVISIONS, 0);
       this.reporter.incrCounter(WikiDumpCounters.WRITTEN_PAGES, 0);
+      
+      
     }
     
     @Override public Text createKey() {

@@ -16,14 +16,15 @@
 
   <dependencies>
     <dependency>
-        <groupId>org.apache.hadoop</groupId>
-        <artifactId>hadoop-common</artifactId>
-        <version>0.21.0-SNAPSHOT</version>
+      <groupId>org.apache.hadoop</groupId>
+      <artifactId>hadoop-core</artifactId>
+      <version>0.20.2-cdh3u1</version>
+      <type>pom</type>
     </dependency>
     <dependency>
         <groupId>org.apache.hadoop</groupId>
-        <artifactId>hadoop-mapred</artifactId>
-        <version>0.21.0-SNAPSHOT</version>
+        <artifactId>hadoop-streaming</artifactId>
+        <version>0.20.2-cdh3u1</version>
     </dependency>
     <dependency>
       <groupId>log4j</groupId>

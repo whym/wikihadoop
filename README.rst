@@ -87,7 +87,7 @@ How to build
    - Use ``git clone https://whym@github.com/whym/wikihadoop.git`` to
      access to the latest source,
 
-3. Add the repository URL ``https://repository.apache.org/content/groups/public/`` to ~/.m2/settings.xml [#]_. Run Maven to build a jar file. ::
+3. Add the repository URL ``https://repository.apache.org/content/groups/public/`` and ``>https://repository.cloudera.com/artifactory/libs-release-local`` to ~/.m2/settings.xml [#]_. Run Maven to build a jar file. ::
     
       mvn package
 
@@ -108,6 +108,16 @@ How to build
                   <repository>
                     <id>apache-public</id>
                     <url>https://repository.apache.org/content/groups/public/</url>
+                    <snapshots>
+                      <enabled>true</enabled>
+                    </snapshots>
+                    <releases>
+                      <enabled>true</enabled>
+                    </releases>
+                  </repository>
+                  <repository>
+                    <id>cloudera-libs-release</id>
+                    <url>https://repository.cloudera.com/artifactory/libs-release-local</url>
                     <snapshots>
                       <enabled>true</enabled>
                     </snapshots>
