@@ -48,7 +48,8 @@ To get the input format class working with Hadoop Streaming, proceed with the fo
 
 1. Install `Apache Hadoop`_.  Version 0.21 and 0.22 is the one we tested.
 
-   - By default it builds with 0.21.  For Hadoop 0.22, you will have to edit the relevant dependency entry in ``pom.xml``.
+   - By default it builds with 0.21.  For Hadoop 0.22, change the version number in ``pom.xml`` at the lines containing ``<version>0.21.0-SNAPSHOT</version>``.
+   - See also Requirements_.
 
 2. Download our jar file.  Alternatively, you can build the class and/or the jar by yourself (see `How to build`_).
 
@@ -219,8 +220,19 @@ Requirements
 ==============================
 Following softwares are required.
 
-- `Apache Hadoop`_ 0.21 (it possibly works also with 0.22 or higher)
+- `Apache Hadoop`_
+  
+  - Versions 0.21 and 0.22 are supported.
+  - `Cloudera's`_ cdh3u1 is also supported at the `cdh3u1 branch`_, thanks to François Kawla).
+  
 - `Apache Maven`_
+
+See also `Supported Versions of Hadoop`_ for more information.
+
+
+.. _Cloudera's: https://ccp.cloudera.com/display/SUPPORT/Downloads
+.. _cdh3u1 branch: https://github.com/whym/wikihadoop/tree/cdh3u1
+.. _Supported Versions of Hadoop: https://github.com/whym/wikihadoop/wiki/Supported-Versions-of-Hadoop.
 
 Sample command line usage
 ==============================
