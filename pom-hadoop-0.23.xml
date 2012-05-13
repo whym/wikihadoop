@@ -71,42 +71,7 @@
               <mainClass>org.wikimedia.wikihadoop.StreamWikiDumpInputFormat</mainClass>
             </manifest>
           </archive>
-          <excludes>
-            <exclude>META-INF/maven/**</exclude>
-            <exclude>org/junit/**</exclude>
-            <exclude>junit/**</exclude>
-            <exclude>com/sun/**</exclude>
-            <exclude>com/thoughtworks/**</exclude>
-            <exclude>contribs/**</exclude>
-            <exclude>javax/**</exclude>
-            <exclude>org/apache/avro/**</exclude>
-            <exclude>org/apache/commons/**</exclude>
-            <exclude>org/apache/log4j/**</exclude>
-            <exclude>org/apache/oro/**</exclude>
-            <exclude>org/apache/taglibs/**</exclude>
-            <exclude>org/xerial/**</exclude>
-            <exclude>org/mortbay/**</exclude>
-            <exclude>org/eclipse/**</exclude>
-            <exclude>org/codehaus/**</exclude>
-            <exclude>webapps/**</exclude>
-            <exclude>**/*.xml</exclude>
-            <exclude>**/*.properties</exclude>
-          </excludes>              
         </configuration>
-      </plugin>
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-dependency-plugin</artifactId>
-	<version>2.4</version>
-        <executions>
-          <execution>
-            <id>unpack-dependencies</id>
-            <phase>package</phase>
-            <goals>
-              <goal>unpack-dependencies</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
