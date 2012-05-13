@@ -400,24 +400,27 @@ public class TestStreamWikiDumpInputFormat {
 
   private static Reporter getStderrReporter() {
     return new Reporter() {
-      public void setStatus(String s) {
+      @Override public void setStatus(String s) {
         System.err.println(s);
       }
-      public void progress() {
+      @Override public void progress() {
       }
-      public Counters.Counter getCounter(Enum<?> name) {
+      public float getProgress() {
+        return 0;
+      }
+      @Override public Counters.Counter getCounter(Enum<?> name) {
         return null;
       }
-      public Counters.Counter getCounter(String group, String name) {
+      @Override public Counters.Counter getCounter(String group, String name) {
         return null;
       }
-      public void incrCounter(Enum<?> key, long amount) {
+      @Override public void incrCounter(Enum<?> key, long amount) {
         //System.err.println(key.toString() + " is incremented by " + amount);
       }
-      public void incrCounter(String group, String counter, long amount) {
+      @Override public void incrCounter(String group, String counter, long amount) {
         //System.err.println(group.toString() + " " + counter + " is incremented by " + amount);
       }
-      public InputSplit getInputSplit() throws UnsupportedOperationException {
+      @Override public InputSplit getInputSplit() throws UnsupportedOperationException {
         throw new UnsupportedOperationException();
       }
     };
