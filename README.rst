@@ -46,17 +46,16 @@ Essentially WikiHadoop is an input format for ``Hadoop Streaming``.  Once you ha
 
 To get the input format class working with Hadoop Streaming, proceed with the following procedures:
 
-1. Install `Apache Hadoop`_.  Version 0.21 and 0.22 are the ones we tested.
+1. Install `Apache Hadoop`_.  Version 0.21, 0.22 and 0.23 are the ones we tested.
 
-   - By default it builds with 0.22.  For Hadoop 0.21, change the version number in ``pom.xml`` for ``hadoop-common`` and ``hadoop-mapred`` [#]_.
    - See also Requirements_.
 
-2. Download our jar file.  Alternatively, you can build the class and/or the jar by yourself (see `How to build`_).
+2. Obtain our jar file from `download page`_.  Alternatively, you can build the class and/or the jar by yourself (see `How to build`_).  We will call the jar file ``wikihadoop.jar`` in this document.
 
    - From our `download page`_ you can download the latest jar file or
      the tarball containing the default mapper for creating diffs.
 
-3. Find the jar file of Hadoop Streaming ``hadoop-streaming.jar`` in your copy of Hadoop.  It is probably found at ``mapred/contrib/streaming/hadoop-0.21.0-streaming.jar``.
+3. Find the jar file of Hadoop Streaming in your copy of Hadoop.  It is probably found at ``mapred/contrib/streaming/hadoop-*-streaming.jar``.  We will call it ``hadoop-streaming.jar`` in this document.
 
 4. Run a `Hadoop Streaming`_ command with the jar file and our input format specified.
 
@@ -77,23 +76,26 @@ To get the input format class working with Hadoop Streaming, proceed with the fo
 .. _Differ's readme file: http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/README.txt
 .. _StreamWikiDumpInputFormat: https://github.com/whym/wikihadoop/blob/master/mapreduce/src/contrib/streaming/src/java/org/wikimedia/wikihadoop/StreamWikiDumpInputFormat.java
 .. _download page: https://github.com/whym/wikihadoop/downloads
-.. [#] ``<version>0.21.0-SNAPSHOT</version>`` is confirmed to work.
 
 How to build
 ==============================
 
-2. Download WikiHadoop_ and extract the source tree.
+1. Download WikiHadoop_ and extract the source tree.
    
    We provide both our git repository and a tarball package.
    
    - Use ``git clone https://whym@github.com/whym/wikihadoop.git`` to
      access to the latest source,
 
-3. Add the repository URL ``https://repository.apache.org/content/groups/public/`` to ~/.m2/settings.xml [#]_. Run Maven to build a jar file. ::
+2. Add the repository URL ``https://repository.apache.org/content/groups/public/`` to ~/.m2/settings.xml [#]_.
+
+3. Run Maven to build a jar file. ::
     
       mvn package
 
-4. Find the resulting jar file at ``target/wikihadoop-0.2.jar``.
+   - By default it compiles with the Hadoop 0.22's code base.  We have found that the resulting jar file is compatible with Hadoop 0.21 and 0.23.  When it is incompatible for some reason, you could also try ``mvn -f pom-hadoop-0.21.xml package`` or  ``mvn -f pom-hadoop-0.23.xml package``, or changing the value of the fields specifying Hadoop modules in pom files.
+
+3. Find the resulting jar file at ``target/wikihadoop-*.jar``.
 
 .. [#] You will need to have setting.xml like this:
        ::
@@ -223,7 +225,7 @@ Following softwares are required.
 
 - `Apache Hadoop`_
   
-  - Versions 0.21 and 0.22 are supported.
+  - Versions 0.21, 0.22 and 0.23 are supported.
   - `Cloudera's`_ cdh3u1 is also supported at the `cdh3u1 branch`_, thanks to François Kawla).
   
 - `Apache Maven`_
