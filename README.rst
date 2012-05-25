@@ -93,7 +93,7 @@ How to build
     
       mvn package
 
-   - By default it compiles with the Hadoop 0.22's code base.  We have found that the resulting jar file is compatible with Hadoop 0.21 and 0.23.  When it is incompatible for some reason, you could also try ``mvn -f pom-hadoop-0.21.xml package`` or  ``mvn -f pom-hadoop-0.23.xml package``, or changing the value of the fields specifying Hadoop modules in pom files.
+   - By default it compiles with the Hadoop 0.22's code base.  We have found that the resulting jar file is compatible with Hadoop 0.21, 0.23, 2.0 and CDH4.  When it is incompatible for some reason, you could also try building it with customized pom files by running commands like ``mvn -f pom-hadoop-0.21.xml package`` or  ``mvn -f pom-hadoop-0.23.xml package``, or changing the dependencies manually.
 
 3. Find the resulting jar file at ``target/wikihadoop-*.jar``.
 
@@ -225,7 +225,7 @@ Following softwares are required.
 
 - `Apache Hadoop`_
   
-  - Versions 0.21, 0.22 and 0.23 are supported.
+  - Versions 0.21, 0.22, 0.23, 2.0 and CDH4 are supported.
   - `Cloudera's`_ cdh3u1 is also supported at the `cdh3u1 branch`_, thanks to François Kawla).
   
 - `Apache Maven`_
