@@ -61,7 +61,7 @@ To get the input format class working with Hadoop Streaming, proceed with the fo
 
    -  A command will look like this: ::
       
-       hadoop jar hadoop-streaming.jar -libjars wikihadoop.jar -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat
+       hadoop jar hadoop-streaming.jar -libjars wikihadoop.jar -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat -mapper /bin/cat
      
       See `Sample command line usage`_, `Configuration variables`_ and the official documentation of `Hadoop Streaming`_ for more details.
 
@@ -72,6 +72,10 @@ To get the input format class working with Hadoop Streaming, proceed with the fo
    checkout
    http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs``.
    See its `Differ's readme file`_ for more details and other requirements.
+
+   Note: mappers need to be distributed to the computing nodes under
+   the same path. To do so, you can use the ``-file`` option of Hadoop
+   Streaming or copy the necessary files manually.
 
 .. _Differ's readme file: http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/README.txt
 .. _StreamWikiDumpInputFormat: https://github.com/whym/wikihadoop/blob/master/mapreduce/src/contrib/streaming/src/java/org/wikimedia/wikihadoop/StreamWikiDumpInputFormat.java
@@ -87,42 +91,13 @@ How to build
    - Use ``git clone https://whym@github.com/whym/wikihadoop.git`` to
      access to the latest source,
 
-2. Add the repository URL ``https://repository.apache.org/content/groups/public/`` to ~/.m2/settings.xml [#]_.
-
-3. Run Maven to build a jar file. ::
+2. Run Maven to build a jar file. ::
     
       mvn package
 
    - By default it compiles with the Hadoop 0.22's code base.  We have found that the resulting jar file is compatible with Hadoop 0.21, 0.23, 2.0 and CDH4.  When it is incompatible for some reason, you could also try building it with customized pom files by running commands like ``mvn -f pom-hadoop-0.21.xml package`` or  ``mvn -f pom-hadoop-0.23.xml package``, or changing the dependencies manually.
 
 3. Find the resulting jar file at ``target/wikihadoop-*.jar``.
-
-.. [#] You will need to have setting.xml like this:
-       ::
-       
-        <settings>
-          <profiles>
-              <profile>
-                <id>my-profile</id>
-                <activation>
-                  <activeByDefault>true</activeByDefault>
-                </activation>
-                <repositories>
-                  <!-- after other <repository> elements  -->
-                  <repository>
-                    <id>apache-public</id>
-                    <url>https://repository.apache.org/content/groups/public/</url>
-                    <snapshots>
-                      <enabled>true</enabled>
-                    </snapshots>
-                    <releases>
-                      <enabled>true</enabled>
-                    </releases>
-                  </repository>
-                </repositories>
-              </profile>
-            </profiles>
-        </settings>
 
 
 Input & Output format
@@ -242,9 +217,9 @@ See also `Supported Versions of Hadoop`_ for more information.
 Sample command line usage
 ==============================
 
-- To process an English Wikipedia dump with Hadoop's default mapper: ::
+- To process an English Wikipedia dump with the cat command: ::
   
-    hadoop jar hadoop-streaming.jar -libjars wikihadoop.jar -D mapreduce.input.fileinputformat.split.minsize=300000000 -D mapreduce.task.timeout=6000000 -input /enwiki-20110722-pages-meta-history27.xml.bz2 -output /usr/hadoop/out -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat
+    hadoop jar hadoop-streaming.jar -libjars wikihadoop.jar -D mapreduce.input.fileinputformat.split.minsize=300000000 -D mapreduce.task.timeout=6000000 -input /enwiki-20110722-pages-meta-history27.xml.bz2 -output /usr/hadoop/out -inputformat org.wikimedia.wikihadoop.StreamWikiDumpInputFormat -mapper /bin/cat
 
 Configuration variables
 ==============================
