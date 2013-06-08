@@ -52,9 +52,6 @@ To get the input format class working with Hadoop Streaming, proceed with the fo
 
 2. Obtain our jar file from `download page`_.  Alternatively, you can build the class and/or the jar by yourself (see `How to build`_).  We will call the jar file ``wikihadoop.jar`` in this document.
 
-   - From our `download page`_ you can download the latest jar file or
-     the tarball containing the default mapper for creating diffs.
-
 3. Find the jar file of Hadoop Streaming in your copy of Hadoop.  It is probably found at ``mapred/contrib/streaming/hadoop-*-streaming.jar``.  We will call it ``hadoop-streaming.jar`` in this document.
 
 4. Run a `Hadoop Streaming`_ command with the jar file and our input format specified.
@@ -79,7 +76,7 @@ To get the input format class working with Hadoop Streaming, proceed with the fo
 
 .. _Differ's readme file: http://svn.wikimedia.org/svnroot/mediawiki/trunk/tools/wsor/diffs/README.txt
 .. _StreamWikiDumpInputFormat: https://github.com/whym/wikihadoop/blob/master/mapreduce/src/contrib/streaming/src/java/org/wikimedia/wikihadoop/StreamWikiDumpInputFormat.java
-.. _download page: https://github.com/whym/wikihadoop/downloads
+.. _download page: http://whym.github.io/wikihadoop/
 
 How to build
 ==============================
